@@ -1,0 +1,148 @@
+datasource db {
+  provider = "postgresql" // or mysql/sqlite
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  CEO
+  Admin
+  Attendee
+  Receptionist
+  Cashier
+  Packager
+  Storekeeper
+  Customer
+}
+
+enum OrderStatus {
+  pending_payment
+  paid
+  assigned_packager
+  packaged
+  picked_up
+  delivered
+}
+
+enum PaymentMethod {
+  paystack
+  bank_transfer
+  cash
+}
+
+enum PaymentStatus {
+  pending
+  confirmed
+}
+
+model User {
+  id        String    @id @default(uuid())
+  username  String    @unique
+  email     String    @unique
+  password  String
+  fullName  String
+  role      UserRole
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  lastLogin DateTime?
+  createdBy String
+
+  logs ActivityLog[]
+
+  // Each user may be involved in orders with different roles
+  createdOrders  Order[] @relation("CreatedOrders")
+  attendedOrders Order[] @relation("AttendedOrders")
+  receivedOrders Order[] @relation("ReceivedOrders")
+  packagedOrders Order[] @relation("PackagedOrders")
+  storedOrders   Order[] @relation("StoredOrders")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  action    String
+  details   String
+  timestamp DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+}
+
+model Product {
+  id             String      @id @default(uuid())
+  name           String
+  description    String
+  price          Float
+  image          String?
+  totalStock     Int
+  availableStock Int         @default(0)
+  orders         Order[]     @relation("OrderProducts")
+  OrderItem      OrderItem[]
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model Order {
+  id String @id @default(uuid())
+
+  // Relations to user in multiple roles
+  userId String?
+  user   User?   @relation("CreatedOrders", fields: [userId], references: [id])
+
+  attendeeId String?
+  attendee   User?   @relation("AttendedOrders", fields: [attendeeId], references: [id])
+
+  receptionistId String?
+  receptionist   User?   @relation("ReceivedOrders", fields: [receptionistId], references: [id])
+
+  packagerId String?
+  packager   User?   @relation("PackagedOrders", fields: [packagerId], references: [id])
+
+  storekeeperId String?
+  storekeeper   User?   @relation("StoredOrders", fields: [storekeeperId], references: [id])
+
+  customerName  String
+  customerPhone String?
+  status        OrderStatus
+  paymentMethod PaymentMethod?
+  paymentStatus PaymentStatus
+  totalAmount   Float
+  receiptId     String         @unique
+
+  products  Product[]   @relation("OrderProducts")
+  OrderItem OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PendingChange {
+  id           String   @id @default(uuid())
+  type         String
+  originalItem Json
+  newItem      Json?
+  submittedBy  String
+  submittedAt  DateTime @default(now())
+  status       String   @default("pending")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+}
