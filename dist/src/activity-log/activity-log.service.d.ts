@@ -6,13 +6,13 @@ export declare class ActivityLogService {
     findAll(): import(".prisma/client").Prisma.PrismaPromise<({
         user: {
             id: string;
+            createdAt: Date;
             username: string;
             email: string;
             password: string;
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
             isActive: boolean;
-            createdAt: Date;
             lastLogin: Date | null;
             createdBy: string;
         };
