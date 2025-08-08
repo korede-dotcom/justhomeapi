@@ -23,13 +23,17 @@ let OrderController = class OrderController {
         this.orderService = orderService;
         this.logger = new common_2.Logger(order_service_1.OrderService.name);
     }
-    findAll() {
-        return this.orderService.findAll();
+    findAll(req) {
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        this.logger.log(`Fetching orders for user: ${userId}`);
+        return this.orderService.getOrdersForUser(userId);
     }
     findAllForStoreKeeper(req) {
-        const user = req.user;
-        this.logger.log(`${JSON.stringify(user)}`);
-        return this.orderService.getOrdersByStorekeeper("");
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        this.logger.log(`Storekeeper orders for user: ${userId}`);
+        return this.orderService.getOrdersForUser(userId);
     }
     create(data) {
         return this.orderService.create(data);
@@ -39,6 +43,18 @@ let OrderController = class OrderController {
     }
     updatePayment(id, data) {
         return this.orderService.updatePayment(id, data);
+    }
+    recordPayment(id, paymentData, req) {
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        this.logger.log(`Recording payment for order ${id} by user ${userId}`);
+        return this.orderService.recordPayment(id, paymentData, userId);
+    }
+    getPaymentStatus(id) {
+        return this.orderService.getPaymentStatus(id);
+    }
+    getPaymentHistory(id) {
+        return this.orderService.getPaymentHistory(id);
     }
     updatePackager(id, data) {
         return this.orderService.updatePackager(id, data);
@@ -50,8 +66,9 @@ let OrderController = class OrderController {
 exports.OrderController = OrderController;
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], OrderController.prototype, "findAll", null);
 __decorate([
@@ -84,6 +101,29 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], OrderController.prototype, "updatePayment", null);
+__decorate([
+    (0, common_1.Patch)(':id/payment'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", void 0)
+], OrderController.prototype, "recordPayment", null);
+__decorate([
+    (0, common_1.Get)(':id/payment-status'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], OrderController.prototype, "getPaymentStatus", null);
+__decorate([
+    (0, common_1.Get)(':id/payments'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], OrderController.prototype, "getPaymentHistory", null);
 __decorate([
     (0, common_1.Patch)("packager/:id"),
     __param(0, (0, common_1.Param)('id')),

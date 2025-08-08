@@ -1,0 +1,6 @@
+name,description,price,categoryId,warehouseId,totalStock,availableStock,image
+Samsung Galaxy S24,Latest flagship smartphone with advanced camera,850000,f63c62d4-641b-4def-8bbc-eff83e5a7e3e,0bfea97b-f3e7-4ce7-ac88-c498fd45d988,50,50,https://example.com/samsung-s24.jpg
+MacBook Pro 16,High-performance laptop for professionals,1200000,f63c62d4-641b-4def-8bbc-eff83e5a7e3e,0bfea97b-f3e7-4ce7-ac88-c498fd45d988,25,20,https://example.com/macbook-pro.jpg
+Office Chair,Ergonomic office chair with lumbar support,75000,f63c62d4-641b-4def-8bbc-eff83e5a7e3e,0bfea97b-f3e7-4ce7-ac88-c498fd45d988,100,85,https://example.com/office-chair.jpg
+Wireless Mouse,Bluetooth wireless mouse with precision tracking,15000,f63c62d4-641b-4def-8bbc-eff83e5a7e3e,0bfea97b-f3e7-4ce7-ac88-c498fd45d988,200,180,https://example.com/wireless-mouse.jpg
+Standing Desk,Height adjustable standing desk,120000,f63c62d4-641b-4def-8bbc-eff83e5a7e3e,0bfea97b-f3e7-4ce7-ac88-c498fd45d988,30,25,https://example.com/standing-desk.jpg

@@ -12,6 +12,7 @@ export declare class AuthController {
             role: import(".prisma/client").$Enums.UserRole;
             fullName: string;
             isActive: boolean;
+            shopId: string | null;
         };
         message: string;
     }>;

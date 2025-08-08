@@ -16,10 +16,13 @@ enum UserRole {
   Packager
   Storekeeper
   Customer
+  Warehouse
+  WarehouseKeeper
 }
 
 enum OrderStatus {
   pending_payment
+  partial_payment
   paid
   assigned_packager
   packaged
@@ -35,6 +38,9 @@ enum PaymentMethod {
 
 enum PaymentStatus {
   pending
+  partial
+  paid
+  overpaid
   confirmed
 }
 
@@ -50,14 +56,51 @@ model User {
   lastLogin DateTime?
   createdBy String
 
-  logs ActivityLog[]
+  shopId String?
+  shop   Shop?   @relation(fields: [shopId], references: [id])
 
-  // Each user may be involved in orders with different roles
-  createdOrders  Order[] @relation("CreatedOrders")
-  attendedOrders Order[] @relation("AttendedOrders")
-  receivedOrders Order[] @relation("ReceivedOrders")
-  packagedOrders Order[] @relation("PackagedOrders")
-  storedOrders   Order[] @relation("StoredOrders")
+  warehouseId String?
+  warehouse   Warehouse? @relation("UsersInWarehouse", fields: [warehouseId], references: [id])
+
+  managedShops      Shop[]              @relation("ManagedShops")
+  managedWarehouses Warehouse[]         @relation("ManagedWarehouses")
+  createdOrders     Order[]             @relation("CreatedOrders")
+  attendedOrders    Order[]             @relation("AttendedOrders")
+  receivedOrders    Order[]             @relation("ReceivedOrders")
+  packagedOrders    Order[]             @relation("PackagedOrders")
+  storedOrders      Order[]             @relation("StoredOrders")
+  ActivityLog       ActivityLog[]
+  assignedProducts  ProductAssignment[] @relation("AssignedBy")
+}
+
+model Shop {
+  id          String  @id @default(uuid())
+  name        String
+  location    String
+  description String?
+  isActive    Boolean @default(true)
+
+  managerId String?
+  manager   User?   @relation("ManagedShops", fields: [managerId], references: [id])
+
+  users              User[]              // Users that belong to this shop
+  productAssignments ProductAssignment[]
+  orders             Order[]             // Orders from this shop
+}
+
+model Warehouse {
+  id          String  @id @default(uuid())
+  name        String
+  location    String
+  description String?
+  isActive    Boolean @default(true)
+
+  managerId String?
+  manager   User?   @relation("ManagedWarehouses", fields: [managerId], references: [id])
+
+  users              User[]              @relation("UsersInWarehouse")
+  products           Product[]
+  productAssignments ProductAssignment[]
 }
 
 model ActivityLog {
@@ -79,11 +122,17 @@ model Product {
   image          String?
   totalStock     Int
   availableStock Int         @default(0)
+  createdAt      DateTime    @default(now())
   orders         Order[]     @relation("OrderProducts")
   OrderItem      OrderItem[]
 
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  assignments ProductAssignment[]
 }
 
 model Category {
@@ -113,12 +162,17 @@ model Order {
   storekeeperId String?
   storekeeper   User?   @relation("StoredOrders", fields: [storekeeperId], references: [id])
 
+  // Shop relation for order filtering
+  shopId String?
+  shop   Shop?   @relation(fields: [shopId], references: [id])
+
   customerName  String
   customerPhone String?
   status        OrderStatus
   paymentMethod PaymentMethod?
   paymentStatus PaymentStatus
   totalAmount   Float
+  paidAmount    Float          @default(0)
   receiptId     String         @unique
 
   products  Product[]   @relation("OrderProducts")
@@ -145,4 +199,24 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
   productId String
   quantity  Int
+}
+
+model ProductAssignment {
+  id         String   @id @default(uuid())
+  quantity   Int      // Total quantity assigned to shop
+  availableQuantity Int @default(0) // Available quantity at shop (quantity - sold)
+  soldQuantity      Int @default(0) // Quantity sold from shop
+  assignedAt DateTime @default(now())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  assignedBy String
+  assignedByUser User @relation("AssignedBy", fields: [assignedBy], references: [id])
 }

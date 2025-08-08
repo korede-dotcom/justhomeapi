@@ -4,9 +4,16 @@ export declare class OrderController {
     private readonly orderService;
     private readonly logger;
     constructor(orderService: OrderService);
-    findAll(): Promise<({
+    findAll(req: Request): Promise<({
+        shop: {
+            id: string;
+            name: string;
+            location: string;
+        } | null;
         products: {
             id: string;
+            createdAt: Date;
+            warehouseId: string;
             name: string;
             description: string;
             price: number;
@@ -15,30 +22,6 @@ export declare class OrderController {
             availableStock: number;
             categoryId: string;
         }[];
-        OrderItem: ({
-            product: {
-                id: string;
-                name: string;
-                description: string;
-                price: number;
-                image: string | null;
-                totalStock: number;
-                availableStock: number;
-                categoryId: string;
-            };
-        } & {
-            id: string;
-            orderId: string;
-            productId: string;
-            quantity: number;
-        })[];
-        user: {
-            id: string;
-            username: string;
-            email: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        } | null;
         attendee: {
             id: string;
             username: string;
@@ -67,10 +50,29 @@ export declare class OrderController {
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
         } | null;
+        OrderItem: ({
+            product: {
+                id: string;
+                createdAt: Date;
+                warehouseId: string;
+                name: string;
+                description: string;
+                price: number;
+                image: string | null;
+                totalStock: number;
+                availableStock: number;
+                categoryId: string;
+            };
+        } & {
+            id: string;
+            orderId: string;
+            productId: string;
+            quantity: number;
+        })[];
     } & {
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -78,15 +80,24 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     })[]>;
     findAllForStoreKeeper(req: Request): Promise<({
+        shop: {
+            id: string;
+            name: string;
+            location: string;
+        } | null;
         products: {
             id: string;
+            createdAt: Date;
+            warehouseId: string;
             name: string;
             description: string;
             price: number;
@@ -95,30 +106,6 @@ export declare class OrderController {
             availableStock: number;
             categoryId: string;
         }[];
-        OrderItem: ({
-            product: {
-                id: string;
-                name: string;
-                description: string;
-                price: number;
-                image: string | null;
-                totalStock: number;
-                availableStock: number;
-                categoryId: string;
-            };
-        } & {
-            id: string;
-            orderId: string;
-            productId: string;
-            quantity: number;
-        })[];
-        user: {
-            id: string;
-            username: string;
-            email: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        } | null;
         attendee: {
             id: string;
             username: string;
@@ -147,10 +134,29 @@ export declare class OrderController {
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
         } | null;
+        OrderItem: ({
+            product: {
+                id: string;
+                createdAt: Date;
+                warehouseId: string;
+                name: string;
+                description: string;
+                price: number;
+                image: string | null;
+                totalStock: number;
+                availableStock: number;
+                categoryId: string;
+            };
+        } & {
+            id: string;
+            orderId: string;
+            productId: string;
+            quantity: number;
+        })[];
     } & {
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -158,15 +164,19 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     })[]>;
     create(data: any): Promise<{
         products: {
             id: string;
+            createdAt: Date;
+            warehouseId: string;
             name: string;
             description: string;
             price: number;
@@ -178,6 +188,8 @@ export declare class OrderController {
         OrderItem: ({
             product: {
                 id: string;
+                createdAt: Date;
+                warehouseId: string;
                 name: string;
                 description: string;
                 price: number;
@@ -195,7 +207,7 @@ export declare class OrderController {
     } & {
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -203,16 +215,18 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     }>;
     update(id: string, data: any): Promise<{
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -220,16 +234,18 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     }>;
     updatePayment(id: string, data: any): Promise<{
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -237,16 +253,113 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
+    }>;
+    recordPayment(id: string, paymentData: any, req: Request): Promise<{
+        success: boolean;
+        message: string;
+        order: {
+            shop: {
+                id: string;
+                name: string;
+                location: string;
+            } | null;
+            OrderItem: ({
+                product: {
+                    id: string;
+                    createdAt: Date;
+                    warehouseId: string;
+                    name: string;
+                    description: string;
+                    price: number;
+                    image: string | null;
+                    totalStock: number;
+                    availableStock: number;
+                    categoryId: string;
+                };
+            } & {
+                id: string;
+                orderId: string;
+                productId: string;
+                quantity: number;
+            })[];
+        } & {
+            id: string;
+            createdAt: Date;
+            shopId: string | null;
+            userId: string | null;
+            attendeeId: string | null;
+            receptionistId: string | null;
+            packagerId: string | null;
+            storekeeperId: string | null;
+            customerName: string;
+            customerPhone: string | null;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            totalAmount: number;
+            paidAmount: number;
+            receiptId: string;
+            updatedAt: Date;
+        };
+        payment: {
+            amount: number;
+            method: any;
+            reference: any;
+            notes: any;
+            recordedAt: Date;
+            recordedBy: string;
+        };
+        summary: {
+            totalAmount: number;
+            paidAmount: number;
+            balanceAmount: number;
+            paymentStatus: "paid" | "partial" | "overpaid";
+            paymentPercentage: number;
+            canProceed: boolean;
+        };
+    }>;
+    getPaymentStatus(id: string): Promise<{
+        orderId: string;
+        customerName: string;
+        totalAmount: number;
+        paidAmount: number;
+        balanceAmount: number;
+        paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+        orderStatus: import(".prisma/client").$Enums.OrderStatus;
+        paymentPercentage: number;
+        canProceed: boolean;
+        nextAction: string;
+    }>;
+    getPaymentHistory(id: string): Promise<{
+        orderId: string;
+        customerName: string;
+        totalAmount: number;
+        paidAmount: number;
+        balanceAmount: number;
+        paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+        paymentActivities: {
+            id: string;
+            details: string;
+            timestamp: Date;
+            recordedBy: {
+                id: string;
+                username: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            };
+        }[];
     }>;
     updatePackager(id: string, data: any): Promise<{
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -254,9 +367,11 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     }>;
@@ -265,7 +380,7 @@ export declare class OrderController {
     }): Promise<{
         id: string;
         createdAt: Date;
-        status: import(".prisma/client").$Enums.OrderStatus;
+        shopId: string | null;
         userId: string | null;
         attendeeId: string | null;
         receptionistId: string | null;
@@ -273,9 +388,11 @@ export declare class OrderController {
         storekeeperId: string | null;
         customerName: string;
         customerPhone: string | null;
+        status: import(".prisma/client").$Enums.OrderStatus;
         paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
         paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
         totalAmount: number;
+        paidAmount: number;
         receiptId: string;
         updatedAt: Date;
     }>;

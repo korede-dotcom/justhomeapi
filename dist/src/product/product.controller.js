@@ -17,13 +17,40 @@ exports.ProductController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const product_service_1 = require("./product.service");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_guard_1 = require("../auth/roles.guard");
 let ProductController = ProductController_1 = class ProductController {
     constructor(productService) {
         this.productService = productService;
         this.logger = new common_1.Logger(ProductController_1.name);
     }
-    findAll() {
-        return this.productService.findAll();
+    async findAll(req) {
+        var _a, _b, _c;
+        this.logger.debug(`Controller received user data: ${JSON.stringify(req.user)}`);
+        let userId;
+        if (typeof req.user === 'string') {
+            userId = req.user;
+        }
+        else if ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) {
+            userId = req.user.userId;
+        }
+        else if ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) {
+            userId = req.user.id;
+        }
+        else if ((_c = req.user) === null || _c === void 0 ? void 0 : _c.sub) {
+            userId = req.user.sub;
+        }
+        else {
+            this.logger.error('No user ID found in request');
+            throw new Error('Authentication failed - no user ID');
+        }
+        this.logger.debug(`Extracted user ID: ${userId}`);
+        if (!userId || typeof userId !== 'string') {
+            this.logger.error(`Invalid user ID format: ${typeof userId}`);
+            throw new Error('Authentication failed - invalid user ID format');
+        }
+        return this.productService.findAllByUserId(userId);
     }
     async createCategory(data) {
         try {
@@ -46,16 +73,28 @@ let ProductController = ProductController_1 = class ProductController {
     update(id, data) {
         return this.productService.update(id, data);
     }
+    async uploadCSV(file, warehouseId) {
+        return this.productService.uploadCSV(file, warehouseId);
+    }
+    async bulkUpload(file, req) {
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        this.logger.log(`Bulk upload initiated by user: ${userId}`);
+        return this.productService.bulkUploadProducts(file, userId);
+    }
 };
 exports.ProductController = ProductController;
 __decorate([
     (0, common_1.Get)(),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager'),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
 ], ProductController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Post)('/category'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -63,12 +102,14 @@ __decorate([
 ], ProductController.prototype, "createCategory", null);
 __decorate([
     (0, common_1.Get)('/category'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "getCategories", null);
 __decorate([
     (0, common_1.Post)('upload'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.UploadedFile)()),
     __param(1, (0, common_1.Body)()),
@@ -78,6 +119,7 @@ __decorate([
 ], ProductController.prototype, "uploadImage", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -85,13 +127,35 @@ __decorate([
 ], ProductController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], ProductController.prototype, "update", null);
+__decorate([
+    (0, common_1.Post)('upload-csv'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)('warehouseId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "uploadCSV", null);
+__decorate([
+    (0, common_1.Post)('bulk-upload'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "bulkUpload", null);
 exports.ProductController = ProductController = ProductController_1 = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('products'),
     __metadata("design:paramtypes", [product_service_1.ProductService])
 ], ProductController);

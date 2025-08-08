@@ -15,11 +15,13 @@ export class AuthService {
     return null;
   }
 
+
+
   async login({ username, password }: LoginDto) {
     try {
       const user = await this.validateUser(username, password);
       if (!user) return null;
-      const payload = { sub: user.id, role: user.role };
+      let payload = { sub: user.id, username: user.username, role: user.role, shopId: user.shopId };
       return {
         access_token: this.jwt.sign(payload),
         user: {
@@ -29,6 +31,7 @@ export class AuthService {
           role: user.role,
           fullName: user.fullName,
           isActive: user.isActive,
+          shopId: user.shopId,
         },
         message: 'Login successful',
       };

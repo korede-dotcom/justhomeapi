@@ -10,6 +10,8 @@ import { ProductModule } from './product/product.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaService } from 'prisma/prisma.service';
+import { ShopModule } from './shop/shop.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { PrismaService } from 'prisma/prisma.service';
     ProductModule,
     ActivityLogModule,
     PendingChangeModule,
+    ShopModule,
+    WarehouseModule
   ],
   providers: [
     PrismaService,

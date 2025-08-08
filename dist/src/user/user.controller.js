@@ -22,14 +22,24 @@ let UserController = class UserController {
     getAll() {
         return this.userService.findAll();
     }
-    getAllPackager() {
-        return this.userService.findAllPackager();
+    getAllPackager(req) {
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        return this.userService.findAllPackager(userId);
     }
     create(data) {
-        return this.userService.create(data);
+        return this.userService.createUser(data);
     }
     update(id, data) {
         return this.userService.update(id, data);
+    }
+    getAllActivityLogs(limit, userId) {
+        const limitNum = limit ? parseInt(limit) : 50;
+        return this.userService.getActivityLogs(limitNum, userId);
+    }
+    getUserActivityLogs(userId, limit) {
+        const limitNum = limit ? parseInt(limit) : 50;
+        return this.userService.getActivityLogs(limitNum, userId);
     }
 };
 exports.UserController = UserController;
@@ -41,8 +51,9 @@ __decorate([
 ], UserController.prototype, "getAll", null);
 __decorate([
     (0, common_1.Get)("/packager"),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "getAllPackager", null);
 __decorate([
@@ -60,6 +71,22 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "update", null);
+__decorate([
+    (0, common_1.Get)('activity-logs'),
+    __param(0, (0, common_1.Query)('limit')),
+    __param(1, (0, common_1.Query)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "getAllActivityLogs", null);
+__decorate([
+    (0, common_1.Get)(':id/activity-logs'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "getUserActivityLogs", null);
 exports.UserController = UserController = __decorate([
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [user_service_1.UserService])

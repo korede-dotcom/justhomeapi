@@ -6,15 +6,17 @@ export declare class ActivityLogController {
     findAll(): import(".prisma/client").Prisma.PrismaPromise<({
         user: {
             id: string;
-            createdAt: Date;
             username: string;
             email: string;
             password: string;
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
             isActive: boolean;
+            createdAt: Date;
             lastLogin: Date | null;
             createdBy: string;
+            shopId: string | null;
+            warehouseId: string | null;
         };
     } & {
         id: string;

@@ -1,37 +1,70 @@
-import { Controller, Get, Post, Body, Param, Patch, UploadedFile, UseInterceptors, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UploadedFile, UseInterceptors, Logger, UseGuards, Request } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
+import { Roles } from '../auth/roles.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
 import {Express} from 'express';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
 export class ProductController {
     private readonly logger = new Logger(ProductController.name);
   constructor(private readonly productService: ProductService) {}
 
   @Get()
-  findAll() {
-    return this.productService.findAll();
+  @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+  async findAll(@Request() req: any) {
+    this.logger.debug(`Controller received user data: ${JSON.stringify(req.user)}`);
+
+    // Extract user ID from the request - handle different JWT payload structures
+    let userId: string;
+
+    if (typeof req.user === 'string') {
+      userId = req.user;
+    } else if (req.user?.userId) {
+      userId = req.user.userId;
+    } else if (req.user?.id) {
+      userId = req.user.id;
+    } else if (req.user?.sub) {
+      userId = req.user.sub;
+    } else {
+      this.logger.error('No user ID found in request');
+      throw new Error('Authentication failed - no user ID');
+    }
+
+    this.logger.debug(`Extracted user ID: ${userId}`);
+
+    if (!userId || typeof userId !== 'string') {
+      this.logger.error(`Invalid user ID format: ${typeof userId}`);
+      throw new Error('Authentication failed - invalid user ID format');
+    }
+
+    return this.productService.findAllByUserId(userId);
   }
 
 
   @Post('/category')
-    async createCategory(@Body() data: any) {
+  @Roles('CEO', 'Admin')
+  async createCategory(@Body() data: any) {
     try {
       return await this.productService.createCategory(data);
     } catch (error: any) {
       this.logger.error('Error creating category:', error);
       throw new Error('Failed to create category');
-        
+
     }
   }
 
-    @Get('/category')
-    async getCategories() {
+  @Get('/category')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+  async getCategories() {
     return this.productService.findAllCategories();
-    }
+  }
 
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file')) // <-- Ensure this matches the field name
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  @UseInterceptors(FileInterceptor('file'))
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: any,
@@ -40,12 +73,36 @@ export class ProductController {
   }
 
   @Post()
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
   create( @Body() data: any) {
     return this.productService.create(data);
   }
 
   @Patch(':id')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
   update(@Param('id') id: string, @Body() data: any) {
     return this.productService.update(id, data);
+  }
+
+  @Post('upload-csv')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  async uploadCSV(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('warehouseId') warehouseId: string
+  ) {
+    return this.productService.uploadCSV(file, warehouseId);
+  }
+
+  @Post('bulk-upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  async bulkUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any
+  ) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    this.logger.log(`Bulk upload initiated by user: ${userId}`);
+    return this.productService.bulkUploadProducts(file, userId);
   }
 }
