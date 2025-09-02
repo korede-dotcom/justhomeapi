@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, UploadedFile, UseInterceptors, Logger, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UploadedFile, UseInterceptors, Logger, UseGuards, Request, Query } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
 import { Roles } from '../auth/roles.decorator';
@@ -14,7 +14,7 @@ export class ProductController {
 
   @Get()
   @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
-  async findAll(@Request() req: any) {
+  async findAll(@Request() req: any, @Query('page') page?: string, @Query('size') size?: string, @Query('search') search?: string, @Query('warehouseId') warehouseId?: string) {
     this.logger.debug(`Controller received user data: ${JSON.stringify(req.user)}`);
 
     // Extract user ID from the request - handle different JWT payload structures
@@ -40,7 +40,12 @@ export class ProductController {
       throw new Error('Authentication failed - invalid user ID format');
     }
 
-    return this.productService.findAllByUserId(userId);
+    const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+    const parsedSize = Math.min(100, Math.max(1, parseInt(size || '20', 10) || 20));
+
+    const trimmedSearch = (search || '').trim();
+    const trimmedWarehouseId = (warehouseId || '').trim();
+    return this.productService.findAllByUserId(userId, parsedPage, parsedSize, trimmedSearch || undefined, trimmedWarehouseId || undefined);
   }
 
 
@@ -104,5 +109,17 @@ export class ProductController {
     const userId = req.user?.userId || req.user?.id || req.user;
     this.logger.log(`Bulk upload initiated by user: ${userId}`);
     return this.productService.bulkUploadProducts(file, userId);
+  }
+
+  @Post('upload-xlsx')
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  async uploadXlsx(
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any
+  ) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    this.logger.log(`XLSX upload initiated by user: ${userId}`);
+    return this.productService.uploadAndReadXlsx(file, userId);
   }
 }

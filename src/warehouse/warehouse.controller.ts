@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { WarehouseProductsQueryDto, SingleWarehouseProductQueryDto } from './dto/warehouse-products.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('warehouses')
@@ -16,9 +17,20 @@ export class WarehouseController {
   }
 
   @Get()
-  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper','Storekeeper','Attendee','Receptionist','Packager')
   findAll() {
     return this.warehouseService.findAll();
+  }
+
+  @Get('dashboard')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper','Storekeeper','Attendee','Receptionist','Packager')
+  async getDashboardStats(@Request() req: any) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    const userInfo = {
+      role: req.user?.role,
+      shopId: req.user?.shopId
+    };
+    return this.warehouseService.getDashboardStats(userId, userInfo);
   }
 
   @Get(':id')
@@ -59,8 +71,31 @@ export class WarehouseController {
 
   @Get('products')
   @Roles('WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
-  getAllProductsForNonAdmins(@Request() req: any) {
-    return this.warehouseService.getAllProductsForNonAdmins(req.user.id);
+  getAllProductsForNonAdmins(
+    @Request() req: any,
+    @Query() query: WarehouseProductsQueryDto
+  ) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    return this.warehouseService.getAllProductsForNonAdmins(userId, query);
+  }
+
+  @Get(':warehouseId/products')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+  getWarehouseProducts(
+    @Param('warehouseId') warehouseId: string,
+    @Query() query: WarehouseProductsQueryDto
+  ) {
+    return this.warehouseService.getWarehouseProducts(warehouseId, query);
+  }
+
+  @Get(':warehouseId/products/:productId')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+  getWarehouseProduct(
+    @Param('warehouseId') warehouseId: string,
+    @Param('productId') productId: string,
+    @Query() query: SingleWarehouseProductQueryDto
+  ) {
+    return this.warehouseService.getWarehouseProduct(warehouseId, productId, query);
   }
 
   @Post('update-shop-inventory')

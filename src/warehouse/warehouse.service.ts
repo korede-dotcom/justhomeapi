@@ -405,14 +405,24 @@ export class WarehouseService {
     }
   }
 
-  async getAllProductsForNonAdmins(userId: string) {
-    try {
-      this.logger.debug(`Getting products for non-admin user: ${userId}`);
+  async getAllProductsForNonAdmins(userId: string, query?: { page?: number; size?: number; search?: string; warehouseId?: string; category?: string }) {
+    this.logger.debug(`Fetching products for non-admin user: ${userId}`);
 
-      // First, get the user and their assigned shop
+    // Set default pagination values
+    const page = query?.page || 1;
+    const size = Math.min(query?.size || 20, 100); // Cap at 100
+    const search = query?.search;
+    const warehouseId = query?.warehouseId;
+    const category = query?.category;
+
+    try {
+      // Get user with shop assignment
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        include: {
+        select: {
+          id: true,
+          role: true,
+          shopId: true,
           shop: {
             select: { id: true, name: true, location: true }
           }
@@ -420,106 +430,597 @@ export class WarehouseService {
       });
 
       if (!user) {
+        this.logger.error(`User with ID ${userId} not found`);
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      if (!user.shop) {
-        this.logger.warn(`User ${userId} is not assigned to any shop`);
+      if (!user.shopId) {
+        this.logger.warn(`User ${userId} has no shop assignment`);
         return {
-          totalProducts: 0,
-          products: [],
-          userShop: null,
-          message: 'No shop assigned to this user'
+          data: [],
+          page,
+          size,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false
         };
       }
 
-      const shopId = user.shop.id;
-      this.logger.debug(`User ${userId} is assigned to shop: ${shopId}`);
+      this.logger.debug(`Fetching products for shop: ${user.shop?.name} (${user.shopId})`);
 
-      // Get all product assignments for the user's shop
-      const productAssignments = await this.prisma.productAssignment.findMany({
-        where: {
-          shopId: shopId
-        },
-        include: {
+      // Build where clause for filtering
+      const whereClause: any = {
+        shopId: user.shopId,
+        ...(warehouseId && { warehouseId }),
+        ...(search && {
           product: {
-            include: {
-              category: {
-                select: { id: true, name: true, description: true }
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+              { category: { name: { contains: search, mode: 'insensitive' } } }
+            ]
+          }
+        }),
+        ...(category && {
+          product: {
+            category: { name: { contains: category, mode: 'insensitive' } }
+          }
+        })
+      };
+
+      // Get total count and paginated results in parallel
+      const [productAssignments, total] = await Promise.all([
+        this.prisma.productAssignment.findMany({
+          where: whereClause,
+          include: {
+            product: {
+              include: {
+                category: true,
+                warehouse: {
+                  select: { id: true, name: true, location: true }
+                }
               }
+            },
+            warehouse: {
+              select: { id: true, name: true, location: true }
             }
           },
-          shop: {
-            select: { id: true, name: true, location: true }
-          },
-          warehouse: {
-            select: { id: true, name: true, location: true }
-          },
-          assignedByUser: {
-            select: { id: true, username: true, fullName: true, role: true }
-          }
+          orderBy: [
+            { product: { name: 'asc' } },
+            { assignedAt: 'desc' }
+          ],
+          skip: (page - 1) * size,
+          take: size
+        }),
+        this.prisma.productAssignment.count({
+          where: whereClause
+        })
+      ]);
+
+      this.logger.debug(`Found ${productAssignments.length} product assignments out of ${total} total for shop ${user.shopId}`);
+
+      const transformedData = productAssignments.map(assignment => ({
+        id: assignment.product.id,
+        name: assignment.product.name,
+        description: assignment.product.description,
+        price: assignment.product.price,
+        image: assignment.product.image,
+        totalStock: assignment.product.totalStock,
+        availableStock: assignment.product.availableStock,
+        category: assignment.product.category.name,
+        assignedQuantity: assignment.quantity,
+        shopAvailableQuantity: assignment.availableQuantity,
+        shopSoldQuantity: assignment.soldQuantity,
+        assignedAt: assignment.assignedAt,
+        assignmentWarehouse: {
+          id: assignment.warehouse?.id || '',
+          name: assignment.warehouse?.name || 'Unknown Warehouse',
+          location: assignment.warehouse?.location || 'Unknown Location'
         },
-        orderBy: [
-          { product: { name: 'asc' } },
-          { assignedAt: 'desc' }
-        ]
-      });
-
-      // Group products by product ID to avoid duplicates and sum quantities
-      const productMap = new Map();
-
-      productAssignments.forEach(assignment => {
-        const productId = assignment.product.id;
-
-        if (productMap.has(productId)) {
-          // Add quantity to existing product
-          const existing = productMap.get(productId);
-          existing.totalAssignedQuantity += assignment.quantity;
-          existing.assignments.push({
-            id: assignment.id,
-            quantity: assignment.quantity,
-            assignedAt: assignment.assignedAt,
-            shop: assignment.shop,
-            warehouse: assignment.warehouse,
-            assignedBy: assignment.assignedByUser
-          });
-        } else {
-          // Add new product
-          productMap.set(productId, {
-            id: assignment.product.id,
-            name: assignment.product.name,
-            description: assignment.product.description,
-            price: assignment.product.price,
-            totalStock: assignment.product.totalStock,
-            availableStock: assignment.product.availableStock,
-            image: assignment.product.image,
-            category: assignment.product.category,
-            totalAssignedQuantity: assignment.quantity,
-            assignments: [{
-              id: assignment.id,
-              quantity: assignment.quantity,
-              assignedAt: assignment.assignedAt,
-              shop: assignment.shop,
-              warehouse: assignment.warehouse,
-              assignedBy: assignment.assignedByUser
-            }]
-          });
+        productWarehouse: {
+          id: assignment.product.warehouseId,
+          name: assignment.product.warehouse?.name || 'Unknown Warehouse',
+          location: assignment.product.warehouse?.location || 'Unknown Location'
         }
-      });
+      }));
 
-      const products = Array.from(productMap.values());
+      const totalPages = Math.ceil(total / size);
 
       return {
-        totalProducts: products.length,
-        userShop: user.shop,
-        products: products
+        data: transformedData,
+        page,
+        size,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1,
+        filters: {
+          search: search || null,
+          warehouseId: warehouseId || null,
+          category: category || null
+        }
       };
     } catch (error: any) {
-      this.logger.error(`Failed to get products for non-admin user ${userId}: ${error.message}`);
+      this.logger.error(`Failed to fetch products for user ${userId}: ${error.message}`);
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException(`Failed to get products: ${error.message}`);
+      throw new BadRequestException(`Failed to fetch products: ${error.message}`);
+    }
+  }
+
+  async getWarehouseProducts(warehouseId: string, query?: { page?: number; size?: number; search?: string; category?: string; all?: boolean }) {
+    this.logger.debug(`Fetching products from warehouse ${warehouseId}`);
+
+    const page = query?.page || 1;
+    const size = Math.min(query?.size || 20, 100);
+    const search = query?.search;
+    const category = query?.category;
+    const fetchAll = query?.all || false;
+
+    try {
+      // Verify warehouse exists
+      const warehouse = await this.prisma.warehouse.findUnique({
+        where: { id: warehouseId },
+        select: { id: true, name: true, location: true, isActive: true }
+      });
+
+      if (!warehouse) {
+        throw new NotFoundException(`Warehouse with ID ${warehouseId} not found`);
+      }
+
+      // Build where clause for filtering
+      const whereClause: any = {
+        warehouseId: warehouseId,
+        ...(search && {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { category: { name: { contains: search, mode: 'insensitive' } } }
+          ]
+        }),
+        ...(category && {
+          category: { name: { contains: category, mode: 'insensitive' } }
+        })
+      };
+
+      // Get products with or without pagination
+      const [products, totalProducts] = await Promise.all([
+        this.prisma.product.findMany({
+          where: whereClause,
+          include: {
+            category: {
+              select: { id: true, name: true, description: true }
+            },
+            assignments: {
+              include: {
+                shop: {
+                  select: { id: true, name: true, location: true, isActive: true }
+                }
+              }
+            },
+            _count: {
+              select: {
+                assignments: true
+              }
+            }
+          },
+          orderBy: [
+            { name: 'asc' },
+            { createdAt: 'desc' }
+          ],
+          ...(fetchAll ? {} : {
+            skip: (page - 1) * size,
+            take: size
+          })
+        }),
+        this.prisma.product.count({
+          where: whereClause
+        })
+      ]);
+
+      const totalPages = fetchAll ? 1 : Math.ceil(totalProducts / size);
+
+      // Transform products data
+      const transformedProducts = products.map(product => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        image: product.image,
+        totalStock: product.totalStock,
+        availableStock: product.availableStock,
+        createdAt: product.createdAt,
+        category: product.category,
+        assignmentSummary: {
+          totalAssignments: product._count.assignments,
+          totalQuantityAssigned: product.assignments.reduce((sum, a) => sum + a.quantity, 0),
+          totalQuantityAvailable: product.assignments.reduce((sum, a) => sum + a.availableQuantity, 0),
+          totalQuantitySold: product.assignments.reduce((sum, a) => sum + a.soldQuantity, 0),
+          assignedShops: product.assignments.length
+        },
+        recentAssignments: product.assignments
+          .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())
+          .slice(0, 3)
+          .map(assignment => ({
+            id: assignment.id,
+            quantity: assignment.quantity,
+            availableQuantity: assignment.availableQuantity,
+            soldQuantity: assignment.soldQuantity,
+            assignedAt: assignment.assignedAt,
+            shop: assignment.shop
+          }))
+      }));
+
+      // Return different structure based on fetchAll parameter
+      if (fetchAll) {
+        return {
+          warehouse,
+          products: transformedProducts,
+          summary: {
+            totalProducts,
+            totalStock: products.reduce((sum, p) => sum + p.totalStock, 0),
+            totalAvailableStock: products.reduce((sum, p) => sum + p.availableStock, 0),
+            totalAssignments: products.reduce((sum, p) => sum + p._count.assignments, 0),
+            categories: [...new Set(products.map(p => p.category.name))].length
+          },
+          filters: {
+            search: search || null,
+            category: category || null
+          }
+        };
+      }
+
+      return {
+        warehouse,
+        products: {
+          data: transformedProducts,
+          page,
+          size,
+          total: totalProducts,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1
+        },
+        summary: {
+          totalProducts,
+          totalStock: products.reduce((sum, p) => sum + p.totalStock, 0),
+          totalAvailableStock: products.reduce((sum, p) => sum + p.availableStock, 0),
+          totalAssignments: products.reduce((sum, p) => sum + p._count.assignments, 0),
+          categories: [...new Set(products.map(p => p.category.name))].length
+        },
+        filters: {
+          search: search || null,
+          category: category || null
+        }
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to get warehouse products ${warehouseId}: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to get warehouse products: ${error.message}`);
+    }
+  }
+
+  async getWarehouseProduct(warehouseId: string, productId: string, query?: { page?: number; size?: number; search?: string }) {
+    this.logger.debug(`Fetching product ${productId} from warehouse ${warehouseId}`);
+
+    const page = query?.page || 1;
+    const size = Math.min(query?.size || 20, 100);
+    const search = query?.search;
+
+    try {
+      // Verify warehouse exists
+      const warehouse = await this.prisma.warehouse.findUnique({
+        where: { id: warehouseId },
+        select: { id: true, name: true, location: true, isActive: true }
+      });
+
+      if (!warehouse) {
+        throw new NotFoundException(`Warehouse with ID ${warehouseId} not found`);
+      }
+
+      // Get the product with its details
+      const product = await this.prisma.product.findFirst({
+        where: {
+          id: productId,
+          warehouseId: warehouseId
+        },
+        include: {
+          category: {
+            select: { id: true, name: true, description: true }
+          },
+          warehouse: {
+            select: { id: true, name: true, location: true }
+          }
+        }
+      });
+
+      if (!product) {
+        throw new NotFoundException(`Product with ID ${productId} not found in warehouse ${warehouseId}`);
+      }
+
+      // Build where clause for product assignments
+      const whereClause: any = {
+        productId: productId,
+        warehouseId: warehouseId,
+        ...(search && {
+          shop: {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { location: { contains: search, mode: 'insensitive' } }
+            ]
+          }
+        })
+      };
+
+      // Get product assignments with pagination
+      const [assignments, totalAssignments] = await Promise.all([
+        this.prisma.productAssignment.findMany({
+          where: whereClause,
+          include: {
+            shop: {
+              select: { id: true, name: true, location: true, isActive: true }
+            },
+            assignedByUser: {
+              select: { id: true, username: true, fullName: true, role: true }
+            }
+          },
+          orderBy: {
+            assignedAt: 'desc'
+          },
+          skip: (page - 1) * size,
+          take: size
+        }),
+        this.prisma.productAssignment.count({
+          where: whereClause
+        })
+      ]);
+
+      const totalPages = Math.ceil(totalAssignments / size);
+
+      return {
+        product: {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price,
+          image: product.image,
+          totalStock: product.totalStock,
+          availableStock: product.availableStock,
+          category: product.category,
+          warehouse: product.warehouse
+        },
+        assignments: {
+          data: assignments.map(assignment => ({
+            id: assignment.id,
+            quantity: assignment.quantity,
+            availableQuantity: assignment.availableQuantity,
+            soldQuantity: assignment.soldQuantity,
+            assignedAt: assignment.assignedAt,
+            shop: assignment.shop,
+            assignedBy: assignment.assignedByUser
+          })),
+          page,
+          size,
+          total: totalAssignments,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1
+        },
+        summary: {
+          totalAssignments,
+          totalQuantityAssigned: assignments.reduce((sum, a) => sum + a.quantity, 0),
+          totalQuantityAvailable: assignments.reduce((sum, a) => sum + a.availableQuantity, 0),
+          totalQuantitySold: assignments.reduce((sum, a) => sum + a.soldQuantity, 0)
+        },
+        filters: {
+          search: search || null
+        }
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to get warehouse product ${productId}: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to get warehouse product: ${error.message}`);
+    }
+  }
+
+  async getDashboardStats(userId?: string, userInfo?: { role?: string; shopId?: string }) {
+    this.logger.debug(`Fetching dashboard statistics for user ${userId} with role ${userInfo?.role} and shopId ${userInfo?.shopId}`);
+
+    try {
+      // Determine if user should see global stats or shop-specific stats
+      const isGlobalUser = userInfo?.role && ['CEO', 'Admin', 'WarehouseKeeper'].includes(userInfo.role);
+      const shopId = !isGlobalUser ? userInfo?.shopId : null;
+
+      this.logger.debug(`Dashboard access level: ${isGlobalUser ? 'Global' : 'Shop-specific'}, shopId: ${shopId}`);
+      // Execute all queries in parallel for better performance
+      const [
+        totalProducts,
+        totalCategories,
+        totalStock,
+        totalWarehouses,
+        totalAssignments,
+        activeShops,
+        activeAssignments,
+        totalRevenue,
+        totalCollected,
+        partialPayments,
+        outstandingPayments,
+        totalOrders,
+        completedOrders,
+        pendingPaymentOrders,
+        readyForPickupOrders,
+        completedOrdersDetailed
+      ] = await Promise.all([
+        // Total Products
+        this.prisma.product.count(),
+        
+        // Categories
+        this.prisma.category.count(),
+        
+        // Total Stock (sum of all product stocks)
+        this.prisma.product.aggregate({
+          _sum: {
+            totalStock: true
+          }
+        }),
+        
+        // Total Warehouses
+        this.prisma.warehouse.count(),
+        
+        // Total Assignments
+        this.prisma.productAssignment.count({
+          ...(shopId && { where: { shopId } })
+        }),
+
+        // Active Shops (for shop users, just check if their shop is active)
+        shopId
+          ? this.prisma.shop.count({
+              where: { id: shopId, isActive: true }
+            })
+          : this.prisma.shop.count({
+              where: { isActive: true }
+            }),
+
+        // Active Assignments (assignments with available quantity > 0)
+        this.prisma.productAssignment.count({
+          where: {
+            availableQuantity: {
+              gt: 0
+            },
+            ...(shopId && { shopId })
+          }
+        }),
+        
+        // Total Revenue (sum of all order total amounts)
+        this.prisma.order.aggregate({
+          _sum: {
+            totalAmount: true
+          },
+          ...(shopId && { where: { shopId } })
+        }),
+
+        // Total Collected (sum of all paid amounts)
+        this.prisma.order.aggregate({
+          _sum: {
+            paidAmount: true
+          },
+          ...(shopId && { where: { shopId } })
+        }),
+
+        // Partial Payments (orders with partial payment status)
+        this.prisma.order.aggregate({
+          _sum: {
+            paidAmount: true
+          },
+          where: {
+            paymentStatus: 'partial',
+            ...(shopId && { shopId })
+          }
+        }),
+
+        // Outstanding Payments (total amount - paid amount for all orders)
+        shopId
+          ? this.prisma.$queryRaw<Array<{ outstanding: number }>>`
+              SELECT COALESCE(SUM("totalAmount" - "paidAmount"), 0) as outstanding
+              FROM "Order"
+              WHERE "shopId" = ${shopId}
+            `
+          : this.prisma.$queryRaw<Array<{ outstanding: number }>>`
+              SELECT COALESCE(SUM("totalAmount" - "paidAmount"), 0) as outstanding
+              FROM "Order"
+            `,
+
+        // Total Orders
+        this.prisma.order.count({
+          ...(shopId && { where: { shopId } })
+        }),
+
+        // Completed Orders (delivered status)
+        this.prisma.order.count({
+          where: {
+            status: 'delivered',
+            ...(shopId && { shopId })
+          }
+        }),
+
+        // Pending Payment Orders
+        this.prisma.order.count({
+          where: {
+            status: 'pending_payment',
+            ...(shopId && { shopId })
+          }
+        }),
+
+        // Ready for Pickup Orders
+        this.prisma.order.count({
+          where: {
+            status: 'picked_up',
+            ...(shopId && { shopId })
+          }
+        }),
+
+        // Completed Orders (detailed breakdown)
+        this.prisma.order.groupBy({
+          by: ['status'],
+          _count: {
+            status: true
+          },
+          ...(shopId && { where: { shopId } })
+        })
+      ]);
+
+      // Format the response
+      const dashboardStats = {
+        // Product Statistics
+        totalProducts: totalProducts,
+        categories: totalCategories,
+        totalStock: totalStock._sum.totalStock || 0,
+
+        // Warehouse & Assignment Statistics
+        warehouses: totalWarehouses,
+        totalAssignments: totalAssignments,
+        activeShops: activeShops,
+        activeAssignments: activeAssignments,
+
+        // Revenue Statistics
+        totalRevenue: totalRevenue._sum.totalAmount || 0,
+        totalCollected: totalCollected._sum.paidAmount || 0,
+        partialPayments: partialPayments._sum.paidAmount || 0,
+        outstandingPayments: Number(outstandingPayments[0]?.outstanding || 0),
+
+        // Order Statistics
+        totalOrders: totalOrders,
+        completedOrders: completedOrders,
+        pendingPayment: pendingPaymentOrders,
+        readyForPickup: readyForPickupOrders,
+
+        // Detailed Order Status Breakdown
+        orderStatusBreakdown: completedOrdersDetailed.reduce((acc, item) => {
+          acc[item.status] = item._count.status;
+          return acc;
+        }, {} as Record<string, number>),
+
+        // Access Information
+        accessInfo: {
+          scope: isGlobalUser ? 'global' : 'shop',
+          shopId: shopId || null,
+          userRole: userInfo?.role || 'Unknown',
+          isFiltered: !isGlobalUser
+        }
+      };
+
+      this.logger.debug(`Dashboard stats calculated successfully for ${isGlobalUser ? 'global' : 'shop'} scope: ${JSON.stringify(dashboardStats)}`);
+      return dashboardStats;
+
+    } catch (error: any) {
+      this.logger.error(`Failed to fetch dashboard statistics: ${error.message}`);
+      throw new BadRequestException(`Failed to fetch dashboard statistics: ${error.message}`);
     }
   }
 

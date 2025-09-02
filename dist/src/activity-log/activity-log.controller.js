@@ -16,12 +16,13 @@ exports.ActivityLogController = void 0;
 const common_1 = require("@nestjs/common");
 const activity_log_service_1 = require("./activity-log.service");
 const current_user_decorator_1 = require("../common/decorators/current-user.decorator");
+const pagination_dto_1 = require("../common/dto/pagination.dto");
 let ActivityLogController = class ActivityLogController {
     constructor(activityLogService) {
         this.activityLogService = activityLogService;
     }
-    findAll() {
-        return this.activityLogService.findAll();
+    findAll(query) {
+        return this.activityLogService.findAll(query);
     }
     create(data, req, user) {
         return this.activityLogService.create(data);
@@ -30,8 +31,9 @@ let ActivityLogController = class ActivityLogController {
 exports.ActivityLogController = ActivityLogController;
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [pagination_dto_1.ActivityLogPaginationDto]),
     __metadata("design:returntype", void 0)
 ], ActivityLogController.prototype, "findAll", null);
 __decorate([

@@ -295,7 +295,7 @@ export class OrderService {
         customerName: rest.customerName,
         customerPhone: rest.customerPhone || null,
         status: rest.status || 'pending_payment',
-        paymentMethod: rest.paymentMethod || null,
+        paymentMethod: rest.paymentMethod || data.paymentMethod,
         paymentStatus: rest.paymentStatus || 'pending',
         totalAmount: rest.totalAmount,
         paidAmount: rest.paidAmount || 0,
@@ -417,22 +417,128 @@ export class OrderService {
 
   async updatePackager(id: string, data: any) {
     this.logger.debug(`Updating packager for order ${id}: ${JSON.stringify(data)}`);
-  try {
-    const updateData: any = {};
 
-    if (data.packagerId) {
-      updateData.packager = { connect: { id: data.packagerId } };
-      updateData.status = "assigned_packager"; // Update status to 'assigned_packager'
+    try {
+      // Validate input data
+      if (!data.packagerId) {
+        throw new BadRequestException('Packager ID is required');
+      }
+
+      // Check if order exists
+      const existingOrder = await this.prisma.order.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          paymentStatus: true,
+          customerName: true,
+          shopId: true,
+          shop: { select: { name: true } }
+        }
+      });
+
+      if (!existingOrder) {
+        throw new NotFoundException(`Order with ID ${id} not found`);
+      }
+
+      // Validate that the packager exists and has the correct role
+      const packager = await this.prisma.user.findUnique({
+        where: { id: data.packagerId },
+        select: {
+          id: true,
+          role: true,
+          fullName: true,
+          isActive: true,
+          shopId: true,
+          shop: { select: { name: true } }
+        }
+      });
+
+      if (!packager) {
+        throw new NotFoundException(`Packager with ID ${data.packagerId} not found`);
+      }
+
+      if (packager.role !== 'Packager') {
+        throw new BadRequestException(`User ${packager.fullName} is not a packager. Current role: ${packager.role}`);
+      }
+
+      if (!packager.isActive) {
+        throw new BadRequestException(`Packager ${packager.fullName} is not active`);
+      }
+
+      // Check if packager is assigned to the same shop as the order (if order has a shop)
+      if (existingOrder.shopId && packager.shopId !== existingOrder.shopId) {
+        throw new BadRequestException(
+          `Packager ${packager.fullName} (${packager.shop?.name || 'No shop'}) cannot be assigned to order from ${existingOrder.shop?.name || 'Unknown shop'}`
+        );
+      }
+
+      this.logger.debug(`Order validation - Status: ${existingOrder.status}, PaymentStatus: ${existingOrder.paymentStatus}`);
+
+      // Validate payment status - only certain payment statuses can have packagers assigned
+      const validPaymentStatuses = ['paid', 'partial'];
+      if (!validPaymentStatuses.includes(existingOrder.paymentStatus)) {
+        throw new BadRequestException(
+          `Cannot assign packager to order with payment status '${existingOrder.paymentStatus}'. Order payment must be 'paid' or 'partial'. Current payment status: ${existingOrder.paymentStatus}`
+        );
+      }
+
+      // For orders with 'partial' payment, we can still assign packager if payment is sufficient
+      // For 'paid' orders, we can definitely assign packager
+      this.logger.debug(`Payment status validation passed for order ${id}`);
+
+      // Validate that order status is not in a final state that prevents packager assignment
+      const invalidOrderStatuses = ['delivered', 'picked_up', 'cancelled'];
+      if (invalidOrderStatuses.includes(existingOrder.status)) {
+        throw new BadRequestException(
+          `Cannot assign packager to order with status '${existingOrder.status}'. Order is already in a final state.`
+        );
+      }
+
+      // Update the order with packager assignment
+      const updatedOrder = await this.prisma.order.update({
+        where: { id },
+        data: {
+          packager: { connect: { id: data.packagerId } },
+          status: "assigned_packager"
+        },
+        include: {
+          packager: {
+            select: { id: true, fullName: true, username: true, role: true }
+          },
+          shop: {
+            select: { id: true, name: true, location: true }
+          }
+        }
+      });
+
+      this.logger.log(`Successfully assigned packager ${packager.fullName} to order ${id} for customer ${existingOrder.customerName}`);
+
+      return {
+        ...updatedOrder,
+        message: `Packager ${packager.fullName} successfully assigned to order`
+      };
+
+    } catch (error: any) {
+      this.logger.error(`Error updating packager for order ${id}:`, error.message);
+
+      // Re-throw known exceptions
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Handle Prisma-specific errors
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Order or packager not found');
+      }
+
+      if (error.code === 'P2002') {
+        throw new BadRequestException('Constraint violation - this assignment may already exist');
+      }
+
+      // Generic error for unexpected issues
+      throw new BadRequestException(`Failed to assign packager: ${error.message}`);
     }
-
-    return await this.prisma.order.update({
-      where: { id },
-      data: updateData,
-    });
-  } catch (error: any) {
-    this.logger.error('Error updating order:', error.message);
-    throw new Error('Failed to update order');
-  }
   }
 
   async updateRelease(id: string, data: any, userId: string) {
@@ -520,6 +626,215 @@ export class OrderService {
     return this.getOrdersByShop(user.shopId);
   }
 
+  // Enhanced method with pagination, search, and filtering
+  async getOrdersForUserWithPagination(
+    userId: string,
+    page: number = 1,
+    size: number = 20,
+    search?: string,
+    status?: string,
+    paymentStatus?: string,
+    startDate?: Date,
+    endDate?: Date,
+    shopId?: string
+  ) {
+    this.logger.debug(`Fetching orders with pagination for user ${userId}: page=${page}, size=${size}, search="${search}", status="${status}", paymentStatus="${paymentStatus}"`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, shopId: true, shop: { select: { name: true } } }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Build where conditions
+    const whereConditions: any = {};
+
+    // Role-based filtering
+    if (user.role !== 'CEO' && user.role !== 'Admin') {
+      // Non-admin users can only see orders from their shop
+      if (!user.shopId) {
+        this.logger.warn(`User ${userId} has no shop assignment`);
+        return {
+          data: [],
+          page,
+          size,
+          total: 0,
+          totalPages: 0
+        };
+      }
+      whereConditions.shopId = user.shopId;
+    } else if (shopId) {
+      // Admin/CEO can filter by specific shop
+      whereConditions.shopId = shopId;
+    }
+
+    // Search functionality
+    if (search) {
+      whereConditions.OR = [
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { customerPhone: { contains: search, mode: 'insensitive' } },
+        { receiptId: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Status filtering
+    if (status) {
+      whereConditions.status = status;
+    }
+
+    // Payment status filtering
+    if (paymentStatus) {
+      whereConditions.paymentStatus = paymentStatus;
+    }
+
+    // Date range filtering
+    if (startDate || endDate) {
+      whereConditions.createdAt = {};
+      if (startDate) {
+        whereConditions.createdAt.gte = startDate;
+      }
+      if (endDate) {
+        whereConditions.createdAt.lte = endDate;
+      }
+    }
+
+    this.logger.debug(`Where conditions: ${JSON.stringify(whereConditions)}`);
+
+    // Calculate offset
+    const offset = (page - 1) * size;
+
+    // Execute queries in parallel for better performance
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where: whereConditions,
+        include: {
+          OrderItem: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  image: true,
+                  category: {
+                    select: { name: true }
+                  }
+                }
+              }
+            }
+          },
+          products: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              image: true,
+              category: {
+                select: { name: true }
+              }
+            }
+          },
+          shop: {
+            select: {
+              id: true,
+              name: true,
+              location: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              username: true
+            }
+          },
+          attendee: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              username: true
+            }
+          },
+          receptionist: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              username: true
+            }
+          },
+          packager: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              username: true
+            }
+          },
+          storekeeper: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+              username: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: size
+      }),
+      this.prisma.order.count({
+        where: whereConditions
+      })
+    ]);
+
+    this.logger.debug(`Found ${orders.length} orders out of ${total} total`);
+
+    // Transform orders to include calculated fields
+    const transformedOrders = orders.map(order => ({
+      ...order,
+      // Calculate remaining balance
+      remainingBalance: Math.max(0, order.totalAmount - (order.paidAmount || 0)),
+      // Calculate payment percentage
+      paymentPercentage: order.totalAmount > 0 ? ((order.paidAmount || 0) / order.totalAmount) * 100 : 0,
+      // Add order summary
+      orderSummary: {
+        totalItems: order.OrderItem.reduce((sum, item) => sum + item.quantity, 0),
+        totalProducts: order.OrderItem.length,
+        totalAmount: order.totalAmount,
+        paidAmount: order.paidAmount || 0,
+        remainingBalance: Math.max(0, order.totalAmount - (order.paidAmount || 0))
+      }
+    }));
+
+    return {
+      data: transformedOrders,
+      page,
+      size,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / size)),
+      filters: {
+        search: search || null,
+        status: status || null,
+        paymentStatus: paymentStatus || null,
+        startDate: startDate?.toISOString() || null,
+        endDate: endDate?.toISOString() || null,
+        shopId: shopId || null
+      }
+    };
+  }
+
   // Get all orders from a specific shop
   async getOrdersByShop(shopId: string) {
     this.logger.debug(`Fetching all orders for shop: ${shopId}`);
@@ -596,7 +911,8 @@ export class OrderService {
         data: {
           paidAmount: newPaidAmount,
           paymentStatus: newPaymentStatus,
-          status: newOrderStatus
+          status: newOrderStatus,
+          paymentMethod: paymentData.paymentMethod || null
         },
         include: {
           OrderItem: { include: { product: true } },

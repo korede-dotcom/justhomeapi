@@ -25,7 +25,7 @@ let ProductController = ProductController_1 = class ProductController {
         this.productService = productService;
         this.logger = new common_1.Logger(ProductController_1.name);
     }
-    async findAll(req) {
+    async findAll(req, page, size, search, warehouseId) {
         var _a, _b, _c;
         this.logger.debug(`Controller received user data: ${JSON.stringify(req.user)}`);
         let userId;
@@ -50,7 +50,11 @@ let ProductController = ProductController_1 = class ProductController {
             this.logger.error(`Invalid user ID format: ${typeof userId}`);
             throw new Error('Authentication failed - invalid user ID format');
         }
-        return this.productService.findAllByUserId(userId);
+        const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+        const parsedSize = Math.min(100, Math.max(1, parseInt(size || '20', 10) || 20));
+        const trimmedSearch = (search || '').trim();
+        const trimmedWarehouseId = (warehouseId || '').trim();
+        return this.productService.findAllByUserId(userId, parsedPage, parsedSize, trimmedSearch || undefined, trimmedWarehouseId || undefined);
     }
     async createCategory(data) {
         try {
@@ -82,14 +86,24 @@ let ProductController = ProductController_1 = class ProductController {
         this.logger.log(`Bulk upload initiated by user: ${userId}`);
         return this.productService.bulkUploadProducts(file, userId);
     }
+    async uploadXlsx(file, req) {
+        var _a, _b;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        this.logger.log(`XLSX upload initiated by user: ${userId}`);
+        return this.productService.uploadAndReadXlsx(file, userId);
+    }
 };
 exports.ProductController = ProductController;
 __decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('size')),
+    __param(3, (0, common_1.Query)('search')),
+    __param(4, (0, common_1.Query)('warehouseId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "findAll", null);
 __decorate([
@@ -154,6 +168,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "bulkUpload", null);
+__decorate([
+    (0, common_1.Post)('upload-xlsx'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "uploadXlsx", null);
 exports.ProductController = ProductController = ProductController_1 = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('products'),

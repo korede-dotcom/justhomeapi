@@ -19,13 +19,66 @@ let ActivityLogService = ActivityLogService_1 = class ActivityLogService {
         this.prisma = prisma;
         this.logger = new common_2.Logger(ActivityLogService_1.name);
     }
-    findAll() {
-        return this.prisma.activityLog.findMany({
-            orderBy: { timestamp: 'desc' },
-            include: {
-                user: true,
-            },
-        });
+    async findAll(query) {
+        const page = (query === null || query === void 0 ? void 0 : query.page) || 1;
+        const size = (query === null || query === void 0 ? void 0 : query.size) || (query === null || query === void 0 ? void 0 : query.limit) || 20;
+        const pageSize = Math.min(size, 100);
+        const userId = query === null || query === void 0 ? void 0 : query.userId;
+        const search = query === null || query === void 0 ? void 0 : query.search;
+        const whereClause = {};
+        if (userId) {
+            whereClause.userId = userId;
+        }
+        if (search) {
+            whereClause.OR = [
+                { action: { contains: search, mode: 'insensitive' } },
+                { details: { contains: search, mode: 'insensitive' } },
+                { user: {
+                        OR: [
+                            { username: { contains: search, mode: 'insensitive' } },
+                            { fullName: { contains: search, mode: 'insensitive' } },
+                            { email: { contains: search, mode: 'insensitive' } }
+                        ]
+                    }
+                }
+            ];
+        }
+        const [activityLogs, total] = await Promise.all([
+            this.prisma.activityLog.findMany({
+                where: whereClause,
+                orderBy: { timestamp: 'desc' },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            username: true,
+                            fullName: true,
+                            email: true,
+                            role: true
+                        }
+                    }
+                },
+                skip: (page - 1) * pageSize,
+                take: pageSize
+            }),
+            this.prisma.activityLog.count({
+                where: whereClause
+            })
+        ]);
+        const totalPages = Math.ceil(total / pageSize);
+        return {
+            data: activityLogs,
+            page,
+            size: pageSize,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrevious: page > 1,
+            filters: {
+                userId: userId || null,
+                search: search || null
+            }
+        };
     }
     async create(data) {
         this.logger.log(`Creating activity log entry: ${JSON.stringify(data)}`);

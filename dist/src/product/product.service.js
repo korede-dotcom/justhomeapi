@@ -23,8 +23,10 @@ var ProductService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const cloudinary_service_1 = require("./cloudinary.service");
+const XLSX = require("xlsx");
 let ProductService = ProductService_1 = class ProductService {
     constructor(prisma, cloudinary) {
         this.prisma = prisma;
@@ -110,8 +112,8 @@ let ProductService = ProductService_1 = class ProductService {
             throw new common_1.BadRequestException(`Failed to fetch products: ${error.message || 'Unknown error'}`);
         }
     }
-    async findAllByUserId(userId) {
-        var _a, _b, _c;
+    async findAllByUserId(userId, page = 1, size = 20, search, warehouseId) {
+        var _a, _b, _c, _d;
         this.logger.log(`Fetching products for user ID: ${userId}`);
         try {
             const user = await this.prisma.user.findUnique({
@@ -132,7 +134,18 @@ let ProductService = ProductService_1 = class ProductService {
             this.logger.debug(`Found user: ${user.id}, role: ${user.role}, shopId: ${user.shopId}, shop: ${JSON.stringify(user.shop)}`);
             if (user.role === 'CEO' || user.role === 'Admin') {
                 this.logger.debug(`Fetching all products for admin/CEO user: ${user.id}`);
-                const products = await this.prisma.$queryRaw `
+                const offset = (page - 1) * size;
+                let whereConditions = [];
+                if (search) {
+                    whereConditions.push(client_1.Prisma.sql `(p.name ILIKE ${'%' + search + '%'} OR p.description ILIKE ${'%' + search + '%'} OR c.name ILIKE ${'%' + search + '%'})`);
+                }
+                if (warehouseId) {
+                    whereConditions.push(client_1.Prisma.sql `p."warehouseId" = ${warehouseId}`);
+                }
+                const whereSql = whereConditions.length > 0
+                    ? client_1.Prisma.sql `WHERE ${client_1.Prisma.join(whereConditions, ' AND ')}`
+                    : client_1.Prisma.sql ``;
+                const products = await this.prisma.$queryRaw(client_1.Prisma.sql `
         SELECT
           p.id,
           p.name,
@@ -148,8 +161,18 @@ let ProductService = ProductService_1 = class ProductService {
         FROM "Product" p
         JOIN "Category" c ON p."categoryId" = c.id
         JOIN "Warehouse" w ON p."warehouseId" = w.id
+        ${whereSql}
         ORDER BY p.name ASC
-      `;
+        LIMIT ${size} OFFSET ${offset}
+      `);
+                const totalResult = await this.prisma.$queryRaw(client_1.Prisma.sql `
+        SELECT COUNT(*)::bigint as count
+        FROM "Product" p
+        JOIN "Category" c ON p."categoryId" = c.id
+        JOIN "Warehouse" w ON p."warehouseId" = w.id
+        ${whereSql}
+      `);
+                const total = Number(((_a = totalResult === null || totalResult === void 0 ? void 0 : totalResult[0]) === null || _a === void 0 ? void 0 : _a.count) || 0);
                 const transformedProducts = products.map(product => ({
                     id: product.id,
                     name: product.name,
@@ -166,38 +189,67 @@ let ProductService = ProductService_1 = class ProductService {
                     }
                 }));
                 this.logger.debug(`Admin/CEO query returned ${transformedProducts.length} products`);
-                return transformedProducts;
+                return {
+                    data: transformedProducts,
+                    page,
+                    size,
+                    total,
+                    totalPages: Math.max(1, Math.ceil(total / size)),
+                };
             }
             if (!user.shopId) {
                 this.logger.warn(`User ${user.id} (${user.role}) has no shop assignment`);
                 return [];
             }
-            this.logger.debug(`Fetching products assigned to shop: ${(_a = user.shop) === null || _a === void 0 ? void 0 : _a.name} (${user.shopId}) for user: ${user.id}`);
-            const productAssignments = await this.prisma.productAssignment.findMany({
-                where: {
-                    shopId: user.shopId
-                },
-                include: {
-                    product: {
-                        include: {
-                            category: true,
-                            warehouse: {
-                                select: { id: true, name: true, location: true }
+            this.logger.debug(`Fetching products assigned to shop: ${(_b = user.shop) === null || _b === void 0 ? void 0 : _b.name} (${user.shopId}) for user: ${user.id}`);
+            const [productAssignments, total] = await Promise.all([
+                this.prisma.productAssignment.findMany({
+                    where: {
+                        shopId: user.shopId,
+                        product: Object.assign(Object.assign({}, (search ? {
+                            OR: [
+                                { name: { contains: search, mode: 'insensitive' } },
+                                { description: { contains: search, mode: 'insensitive' } },
+                                { category: { name: { contains: search, mode: 'insensitive' } } },
+                            ]
+                        } : {})), (warehouseId ? { warehouseId } : {}))
+                    },
+                    include: {
+                        product: {
+                            include: {
+                                category: true,
+                                warehouse: {
+                                    select: { id: true, name: true, location: true }
+                                }
                             }
+                        },
+                        warehouse: {
+                            select: { id: true, name: true, location: true }
                         }
                     },
-                    warehouse: {
-                        select: { id: true, name: true, location: true }
+                    orderBy: [
+                        { product: { name: 'asc' } },
+                        { assignedAt: 'desc' }
+                    ],
+                    skip: (page - 1) * size,
+                    take: size
+                }),
+                this.prisma.productAssignment.count({
+                    where: {
+                        shopId: user.shopId,
+                        product: Object.assign(Object.assign({}, (search ? {
+                            OR: [
+                                { name: { contains: search, mode: 'insensitive' } },
+                                { description: { contains: search, mode: 'insensitive' } },
+                                { category: { name: { contains: search, mode: 'insensitive' } } },
+                            ]
+                        } : {})), (warehouseId ? { warehouseId } : {}))
                     }
-                },
-                orderBy: [
-                    { product: { name: 'asc' } },
-                    { assignedAt: 'desc' }
-                ]
-            });
-            this.logger.debug(`Found ${productAssignments.length} product assignments for shop ${user.shopId} (${(_b = user.shop) === null || _b === void 0 ? void 0 : _b.name})`);
+                })
+            ]);
+            this.logger.debug(`Found ${productAssignments.length} product assignments for shop ${user.shopId} (${(_c = user.shop) === null || _c === void 0 ? void 0 : _c.name})`);
             if (productAssignments.length === 0) {
-                this.logger.warn(`No product assignments found for shop ${user.shopId} (${(_c = user.shop) === null || _c === void 0 ? void 0 : _c.name})`);
+                this.logger.warn(`No product assignments found for shop ${user.shopId} (${(_d = user.shop) === null || _d === void 0 ? void 0 : _d.name})`);
                 return [];
             }
             const products = productAssignments.map(assignment => {
@@ -229,7 +281,13 @@ let ProductService = ProductService_1 = class ProductService {
             });
             this.logger.debug(`Transformed ${products.length} products for shop ${user.shopId}`);
             this.logger.debug(`Product details: ${JSON.stringify(products.map(p => ({ id: p.id, name: p.name, assignedQuantity: p.assignedQuantity })))}`);
-            return products;
+            return {
+                data: products,
+                page,
+                size,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / size)),
+            };
         }
         catch (error) {
             this.logger.error(`Failed to fetch products for user ${userId}: ${error.message || 'Unknown error'}`);
@@ -549,6 +607,322 @@ let ProductService = ProductService_1 = class ProductService {
                 throw error;
             }
             throw new common_1.BadRequestException(`Failed to process bulk upload: ${error.message}`);
+        }
+    }
+    async uploadAndReadXlsx(file, userId) {
+        if (!file) {
+            throw new common_1.BadRequestException('XLSX file is required');
+        }
+        try {
+            this.logger.log(`Processing XLSX upload for user: ${userId}`);
+            this.logger.log(`File details: name=${file.originalname}, size=${file.size}, mimetype=${file.mimetype}`);
+            const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+            this.logger.log(`XLSX workbook loaded with ${workbook.SheetNames.length} sheets: ${workbook.SheetNames.join(', ')}`);
+            const result = {
+                success: true,
+                fileName: file.originalname,
+                fileSize: file.size,
+                sheetsCount: workbook.SheetNames.length,
+                sheets: {},
+                warehouses: [],
+                products: [],
+                summary: {
+                    warehousesCreated: 0,
+                    productsCreated: 0,
+                    errors: []
+                }
+            };
+            for (const sheetName of workbook.SheetNames) {
+                this.logger.log(`Processing stock count sheet: ${sheetName}`);
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const filteredData = jsonData.filter((row) => Array.isArray(row) && row.length > 0 && row.some(cell => cell !== null && cell !== undefined && cell !== ''));
+                this.logger.log(`Sheet "${sheetName}" contains ${filteredData.length} non-empty rows`);
+                result.sheets[sheetName] = {
+                    rowCount: filteredData.length,
+                    data: filteredData
+                };
+                await this.processStockCountSheet(sheetName, filteredData, result, userId);
+            }
+            await this.prisma.activityLog.create({
+                data: {
+                    userId: userId,
+                    action: 'XLSX_UPLOAD_PROCESSED',
+                    details: `Processed XLSX file "${file.originalname}" with ${workbook.SheetNames.length} sheets. Created ${result.summary.warehousesCreated} warehouses and ${result.summary.productsCreated} products. ${result.summary.errors.length > 0 ? `Errors: ${result.summary.errors.length}` : 'All successful'}`,
+                    ipAddress: null,
+                    userAgent: null
+                }
+            });
+            this.logger.log(`XLSX processing completed: ${result.summary.warehousesCreated} warehouses, ${result.summary.productsCreated} products created`);
+            return result;
+        }
+        catch (error) {
+            this.logger.error(`Failed to process XLSX upload: ${error.message}`);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to process XLSX upload: ${error.message}`);
+        }
+    }
+    async processStockCountSheet(sheetName, jsonData, result, userId) {
+        var _a, _b, _c, _d, _e;
+        try {
+            this.logger.log(`Processing stock count sheet: ${sheetName}`);
+            let warehouseName = sheetName;
+            let warehouseLocation = 'Unknown Location';
+            for (const row of jsonData) {
+                if (Array.isArray(row) && row.length > 1) {
+                    const cellValue = ((_a = row[1]) === null || _a === void 0 ? void 0 : _a.toString()) || '';
+                    if (cellValue.includes('LOCATION:')) {
+                        warehouseName = cellValue.replace('LOCATION:', '').trim();
+                        break;
+                    }
+                }
+            }
+            if (warehouseName === sheetName) {
+                warehouseName = sheetName;
+                if (sheetName.includes('(') && sheetName.includes(')')) {
+                    const match = sheetName.match(/\((.*?)\)/);
+                    if (match) {
+                        warehouseLocation = match[1];
+                    }
+                }
+            }
+            this.logger.log(`Creating warehouse: ${warehouseName} at ${warehouseLocation}`);
+            let warehouse;
+            try {
+                warehouse = await this.prisma.warehouse.findFirst({
+                    where: { name: warehouseName }
+                });
+                if (!warehouse) {
+                    warehouse = await this.prisma.warehouse.create({
+                        data: {
+                            name: warehouseName,
+                            location: warehouseLocation,
+                            description: `Auto-created from stock count sheet: ${sheetName}`
+                        }
+                    });
+                    result.warehouses.push(warehouse);
+                    result.summary.warehousesCreated++;
+                    this.logger.log(`Created new warehouse: ${warehouse.name} (${warehouse.id})`);
+                }
+                else {
+                    this.logger.log(`Using existing warehouse: ${warehouse.name} (${warehouse.id})`);
+                }
+            }
+            catch (error) {
+                result.summary.errors.push(`Failed to create warehouse "${warehouseName}": ${error.message}`);
+                return;
+            }
+            let headerRowIndex = -1;
+            for (let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (Array.isArray(row) && row.length >= 4) {
+                    const firstCell = ((_b = row[0]) === null || _b === void 0 ? void 0 : _b.toString().toLowerCase()) || '';
+                    const secondCell = ((_c = row[1]) === null || _c === void 0 ? void 0 : _c.toString().toLowerCase()) || '';
+                    if (firstCell.includes('s/n') || secondCell.includes('name') || secondCell.includes('description')) {
+                        headerRowIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (headerRowIndex === -1) {
+                result.summary.errors.push(`No header row found in sheet "${sheetName}"`);
+                return;
+            }
+            this.logger.log(`Found header row at index ${headerRowIndex}`);
+            const headers = jsonData[headerRowIndex];
+            const nameIndex = this.findColumnIndex(headers, ['name', 'description']);
+            const unitIndex = this.findColumnIndex(headers, ['unit', 'measure']);
+            const stockIndex = this.findColumnIndex(headers, ['stock take', 'stock', 'quantity']);
+            if (nameIndex === -1 || stockIndex === -1) {
+                result.summary.errors.push(`Required columns not found in sheet "${sheetName}". Need name/description and stock take columns.`);
+                return;
+            }
+            this.logger.log(`Column indices - Name: ${nameIndex}, Unit: ${unitIndex}, Stock: ${stockIndex}`);
+            for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!Array.isArray(row) || row.length <= Math.max(nameIndex, stockIndex)) {
+                    continue;
+                }
+                const productName = (_d = row[nameIndex]) === null || _d === void 0 ? void 0 : _d.toString().trim();
+                const stockTake = parseInt(row[stockIndex]) || 0;
+                const unit = unitIndex >= 0 ? (_e = row[unitIndex]) === null || _e === void 0 ? void 0 : _e.toString().trim() : 'Pcs';
+                if (!productName || stockTake <= 0) {
+                    continue;
+                }
+                try {
+                    const defaultCategory = await this.ensureDefaultCategory();
+                    const productData = {
+                        name: productName,
+                        description: `${productName} - Stock count item`,
+                        price: 0,
+                        categoryId: defaultCategory.id,
+                        warehouseId: warehouse.id,
+                        totalStock: stockTake,
+                        availableStock: stockTake,
+                        image: null
+                    };
+                    const createdProduct = await this.prisma.product.create({
+                        data: productData,
+                        include: {
+                            category: true,
+                            warehouse: true
+                        }
+                    });
+                    result.products.push(createdProduct);
+                    result.summary.productsCreated++;
+                    this.logger.log(`Created product: ${createdProduct.name} with stock ${stockTake} in warehouse ${warehouse.name}`);
+                }
+                catch (error) {
+                    result.summary.errors.push(`Row ${i + 1} in sheet "${sheetName}": Failed to create product "${productName}": ${error.message}`);
+                    this.logger.error(`Failed to create product "${productName}": ${error.message}`);
+                }
+            }
+        }
+        catch (error) {
+            result.summary.errors.push(`Failed to process sheet "${sheetName}": ${error.message}`);
+            this.logger.error(`Failed to process sheet "${sheetName}": ${error.message}`);
+        }
+    }
+    findColumnIndex(headers, searchTerms) {
+        var _a;
+        for (let i = 0; i < headers.length; i++) {
+            const header = ((_a = headers[i]) === null || _a === void 0 ? void 0 : _a.toString().toLowerCase()) || '';
+            for (const term of searchTerms) {
+                if (header.includes(term.toLowerCase())) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+    async ensureDefaultCategory() {
+        let category = await this.prisma.category.findFirst({
+            where: { name: 'Stock Count Items' }
+        });
+        if (!category) {
+            category = await this.prisma.category.create({
+                data: {
+                    name: 'Stock Count Items',
+                    description: 'Default category for items imported from stock count sheets'
+                }
+            });
+            this.logger.log(`Created default category: ${category.name} (${category.id})`);
+        }
+        return category;
+    }
+    async processWarehouseSheet(jsonData, result, userId) {
+        var _a, _b, _c;
+        if (jsonData.length < 2) {
+            result.summary.errors.push('Warehouse sheet must contain at least a header and one data row');
+            return;
+        }
+        const headers = jsonData[0];
+        this.logger.log(`Warehouse sheet headers: ${headers.join(', ')}`);
+        const requiredHeaders = ['name', 'location'];
+        const missingHeaders = requiredHeaders.filter(header => !headers.some(h => h && h.toLowerCase().includes(header.toLowerCase())));
+        if (missingHeaders.length > 0) {
+            result.summary.errors.push(`Warehouse sheet missing required headers: ${missingHeaders.join(', ')}`);
+            return;
+        }
+        const nameIndex = headers.findIndex(h => h && h.toLowerCase().includes('name'));
+        const locationIndex = headers.findIndex(h => h && h.toLowerCase().includes('location'));
+        const descriptionIndex = headers.findIndex(h => h && h.toLowerCase().includes('description'));
+        for (let i = 1; i < jsonData.length; i++) {
+            try {
+                const row = jsonData[i];
+                if (!row || row.every(cell => !cell))
+                    continue;
+                const warehouseData = {
+                    name: (_a = row[nameIndex]) === null || _a === void 0 ? void 0 : _a.toString().trim(),
+                    location: (_b = row[locationIndex]) === null || _b === void 0 ? void 0 : _b.toString().trim(),
+                    description: descriptionIndex >= 0 ? (_c = row[descriptionIndex]) === null || _c === void 0 ? void 0 : _c.toString().trim() : null
+                };
+                if (!warehouseData.name || !warehouseData.location) {
+                    result.summary.errors.push(`Warehouse row ${i + 1}: Missing name or location`);
+                    continue;
+                }
+                const createdWarehouse = await this.prisma.warehouse.create({
+                    data: warehouseData
+                });
+                result.warehouses.push(createdWarehouse);
+                result.summary.warehousesCreated++;
+                this.logger.log(`Created warehouse: ${createdWarehouse.name} (${createdWarehouse.id})`);
+            }
+            catch (error) {
+                result.summary.errors.push(`Warehouse row ${i + 1}: ${error.message}`);
+                this.logger.error(`Failed to create warehouse from row ${i + 1}: ${error.message}`);
+            }
+        }
+    }
+    async processProductSheet(jsonData, result, userId) {
+        var _a, _b, _c, _d, _e;
+        if (jsonData.length < 2) {
+            result.summary.errors.push('Product sheet must contain at least a header and one data row');
+            return;
+        }
+        const headers = jsonData[0];
+        this.logger.log(`Product sheet headers: ${headers.join(', ')}`);
+        const requiredHeaders = ['name', 'description', 'price', 'categoryId', 'warehouseId', 'totalStock'];
+        const headerMap = {};
+        requiredHeaders.forEach(reqHeader => {
+            const index = headers.findIndex(h => h && h.toLowerCase().includes(reqHeader.toLowerCase()));
+            if (index >= 0) {
+                headerMap[reqHeader] = index;
+            }
+        });
+        const missingHeaders = requiredHeaders.filter(header => headerMap[header] === undefined);
+        if (missingHeaders.length > 0) {
+            result.summary.errors.push(`Product sheet missing required headers: ${missingHeaders.join(', ')}`);
+            return;
+        }
+        const imageIndex = headers.findIndex(h => h && h.toLowerCase().includes('image'));
+        for (let i = 1; i < jsonData.length; i++) {
+            try {
+                const row = jsonData[i];
+                if (!row || row.every(cell => !cell))
+                    continue;
+                const productData = {
+                    name: (_a = row[headerMap.name]) === null || _a === void 0 ? void 0 : _a.toString().trim(),
+                    description: (_b = row[headerMap.description]) === null || _b === void 0 ? void 0 : _b.toString().trim(),
+                    price: parseFloat(row[headerMap.price]),
+                    categoryId: (_c = row[headerMap.categoryId]) === null || _c === void 0 ? void 0 : _c.toString().trim(),
+                    warehouseId: (_d = row[headerMap.warehouseId]) === null || _d === void 0 ? void 0 : _d.toString().trim(),
+                    totalStock: parseInt(row[headerMap.totalStock]),
+                    availableStock: parseInt(row[headerMap.totalStock]),
+                    image: imageIndex >= 0 ? (_e = row[imageIndex]) === null || _e === void 0 ? void 0 : _e.toString().trim() : null
+                };
+                if (!productData.name || !productData.description || isNaN(productData.price) ||
+                    !productData.categoryId || !productData.warehouseId || isNaN(productData.totalStock)) {
+                    result.summary.errors.push(`Product row ${i + 1}: Missing or invalid required fields`);
+                    continue;
+                }
+                const category = await this.prisma.category.findUnique({ where: { id: productData.categoryId } });
+                if (!category) {
+                    result.summary.errors.push(`Product row ${i + 1}: Category with ID ${productData.categoryId} not found`);
+                    continue;
+                }
+                const warehouse = await this.prisma.warehouse.findUnique({ where: { id: productData.warehouseId } });
+                if (!warehouse) {
+                    result.summary.errors.push(`Product row ${i + 1}: Warehouse with ID ${productData.warehouseId} not found`);
+                    continue;
+                }
+                const createdProduct = await this.prisma.product.create({
+                    data: productData,
+                    include: {
+                        category: true,
+                        warehouse: true
+                    }
+                });
+                result.products.push(createdProduct);
+                result.summary.productsCreated++;
+                this.logger.log(`Created product: ${createdProduct.name} (${createdProduct.id})`);
+            }
+            catch (error) {
+                result.summary.errors.push(`Product row ${i + 1}: ${error.message}`);
+                this.logger.error(`Failed to create product from row ${i + 1}: ${error.message}`);
+            }
         }
     }
 };

@@ -13,18 +13,20 @@ export declare class WarehouseService {
         } | null;
     } & {
         id: string;
-        isActive: boolean;
         name: string;
         location: string;
         description: string | null;
+        isActive: boolean;
         managerId: string | null;
     }>;
     findAll(): Promise<({
-        _count: {
-            users: number;
-            products: number;
-            productAssignments: number;
-        };
+        manager: {
+            id: string;
+            username: string;
+            email: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        } | null;
         users: {
             id: string;
             username: string;
@@ -40,23 +42,16 @@ export declare class WarehouseService {
             };
         } & {
             id: string;
-            createdAt: Date;
-            warehouseId: string;
             name: string;
             description: string;
+            createdAt: Date;
+            warehouseId: string;
             price: number;
             image: string | null;
             totalStock: number;
             availableStock: number;
             categoryId: string;
         })[];
-        manager: {
-            id: string;
-            username: string;
-            email: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        } | null;
         productAssignments: ({
             shop: {
                 id: string;
@@ -84,20 +79,27 @@ export declare class WarehouseService {
             productId: string;
             assignedBy: string;
         })[];
-    } & {
-        id: string;
-        isActive: boolean;
-        name: string;
-        location: string;
-        description: string | null;
-        managerId: string | null;
-    })[]>;
-    findOne(id: string): Promise<{
         _count: {
             users: number;
             products: number;
             productAssignments: number;
         };
+    } & {
+        id: string;
+        name: string;
+        location: string;
+        description: string | null;
+        isActive: boolean;
+        managerId: string | null;
+    })[]>;
+    findOne(id: string): Promise<{
+        manager: {
+            id: string;
+            username: string;
+            email: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        } | null;
         users: {
             id: string;
             username: string;
@@ -113,29 +115,22 @@ export declare class WarehouseService {
             };
         } & {
             id: string;
-            createdAt: Date;
-            warehouseId: string;
             name: string;
             description: string;
+            createdAt: Date;
+            warehouseId: string;
             price: number;
             image: string | null;
             totalStock: number;
             availableStock: number;
             categoryId: string;
         })[];
-        manager: {
-            id: string;
-            username: string;
-            email: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        } | null;
         productAssignments: ({
             shop: {
                 id: string;
-                isActive: boolean;
                 name: string;
                 location: string;
+                isActive: boolean;
             };
             product: {
                 id: string;
@@ -161,28 +156,33 @@ export declare class WarehouseService {
             productId: string;
             assignedBy: string;
         })[];
+        _count: {
+            users: number;
+            products: number;
+            productAssignments: number;
+        };
     } & {
         id: string;
-        isActive: boolean;
         name: string;
         location: string;
         description: string | null;
+        isActive: boolean;
         managerId: string | null;
     }>;
     update(id: string, data: Prisma.WarehouseUpdateInput): Promise<{
         id: string;
-        isActive: boolean;
         name: string;
         location: string;
         description: string | null;
+        isActive: boolean;
         managerId: string | null;
     }>;
     remove(id: string): Promise<{
         id: string;
-        isActive: boolean;
         name: string;
         location: string;
         description: string | null;
+        isActive: boolean;
         managerId: string | null;
     }>;
     assignProductToShop(data: {
@@ -195,12 +195,12 @@ export declare class WarehouseService {
         isRestock: boolean;
         warehouseStockAfter: number;
         message: string;
-        shop: {
+        warehouse: {
             id: string;
             name: string;
             location: string;
         };
-        warehouse: {
+        shop: {
             id: string;
             name: string;
             location: string;
@@ -229,12 +229,12 @@ export declare class WarehouseService {
         warehouse: {
             users: {
                 id: string;
+                isActive: boolean;
                 username: string;
                 email: string;
                 password: string;
                 fullName: string;
                 role: import(".prisma/client").$Enums.UserRole;
-                isActive: boolean;
                 createdAt: Date;
                 lastLogin: Date | null;
                 createdBy: string;
@@ -244,16 +244,16 @@ export declare class WarehouseService {
             products: ({
                 category: {
                     id: string;
-                    createdAt: Date;
                     name: string;
                     description: string;
+                    createdAt: Date;
                 };
             } & {
                 id: string;
-                createdAt: Date;
-                warehouseId: string;
                 name: string;
                 description: string;
+                createdAt: Date;
+                warehouseId: string;
                 price: number;
                 image: string | null;
                 totalStock: number;
@@ -263,18 +263,18 @@ export declare class WarehouseService {
             productAssignments: ({
                 shop: {
                     id: string;
-                    isActive: boolean;
                     name: string;
                     location: string;
                     description: string | null;
+                    isActive: boolean;
                     managerId: string | null;
                 };
                 product: {
                     id: string;
-                    createdAt: Date;
-                    warehouseId: string;
                     name: string;
                     description: string;
+                    createdAt: Date;
+                    warehouseId: string;
                     price: number;
                     image: string | null;
                     totalStock: number;
@@ -294,10 +294,10 @@ export declare class WarehouseService {
             })[];
         } & {
             id: string;
-            isActive: boolean;
             name: string;
             location: string;
             description: string | null;
+            isActive: boolean;
             managerId: string | null;
         };
         totalProducts: number;
@@ -307,9 +307,9 @@ export declare class WarehouseService {
     getProductsAssignedToShop(shopId: string): Promise<{
         shop: {
             id: string;
-            isActive: boolean;
             name: string;
             location: string;
+            isActive: boolean;
         };
         totalAssignments: number;
         assignments: {
@@ -343,20 +343,266 @@ export declare class WarehouseService {
             };
         }[];
     }>;
-    getAllProductsForNonAdmins(userId: string): Promise<{
-        totalProducts: number;
-        products: never[];
-        userShop: null;
-        message: string;
+    getAllProductsForNonAdmins(userId: string, query?: {
+        page?: number;
+        size?: number;
+        search?: string;
+        warehouseId?: string;
+        category?: string;
+    }): Promise<{
+        data: never[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrevious: boolean;
+        filters?: undefined;
     } | {
-        totalProducts: number;
-        userShop: {
+        data: {
+            id: string;
+            name: string;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: string;
+            assignedQuantity: number;
+            shopAvailableQuantity: number;
+            shopSoldQuantity: number;
+            assignedAt: Date;
+            assignmentWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+            productWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrevious: boolean;
+        filters: {
+            search: string | null;
+            warehouseId: string | null;
+            category: string | null;
+        };
+    }>;
+    getWarehouseProducts(warehouseId: string, query?: {
+        page?: number;
+        size?: number;
+        search?: string;
+        category?: string;
+        all?: boolean;
+    }): Promise<{
+        warehouse: {
             id: string;
             name: string;
             location: string;
+            isActive: boolean;
         };
-        products: any[];
-        message?: undefined;
+        products: {
+            id: string;
+            name: string;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            createdAt: Date;
+            category: {
+                id: string;
+                name: string;
+                description: string;
+            };
+            assignmentSummary: {
+                totalAssignments: number;
+                totalQuantityAssigned: number;
+                totalQuantityAvailable: number;
+                totalQuantitySold: number;
+                assignedShops: number;
+            };
+            recentAssignments: {
+                id: string;
+                quantity: number;
+                availableQuantity: number;
+                soldQuantity: number;
+                assignedAt: Date;
+                shop: {
+                    id: string;
+                    name: string;
+                    location: string;
+                    isActive: boolean;
+                };
+            }[];
+        }[];
+        summary: {
+            totalProducts: number;
+            totalStock: number;
+            totalAvailableStock: number;
+            totalAssignments: number;
+            categories: number;
+        };
+        filters: {
+            search: string | null;
+            category: string | null;
+        };
+    } | {
+        warehouse: {
+            id: string;
+            name: string;
+            location: string;
+            isActive: boolean;
+        };
+        products: {
+            data: {
+                id: string;
+                name: string;
+                description: string;
+                price: number;
+                image: string | null;
+                totalStock: number;
+                availableStock: number;
+                createdAt: Date;
+                category: {
+                    id: string;
+                    name: string;
+                    description: string;
+                };
+                assignmentSummary: {
+                    totalAssignments: number;
+                    totalQuantityAssigned: number;
+                    totalQuantityAvailable: number;
+                    totalQuantitySold: number;
+                    assignedShops: number;
+                };
+                recentAssignments: {
+                    id: string;
+                    quantity: number;
+                    availableQuantity: number;
+                    soldQuantity: number;
+                    assignedAt: Date;
+                    shop: {
+                        id: string;
+                        name: string;
+                        location: string;
+                        isActive: boolean;
+                    };
+                }[];
+            }[];
+            page: number;
+            size: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrevious: boolean;
+        };
+        summary: {
+            totalProducts: number;
+            totalStock: number;
+            totalAvailableStock: number;
+            totalAssignments: number;
+            categories: number;
+        };
+        filters: {
+            search: string | null;
+            category: string | null;
+        };
+    }>;
+    getWarehouseProduct(warehouseId: string, productId: string, query?: {
+        page?: number;
+        size?: number;
+        search?: string;
+    }): Promise<{
+        product: {
+            id: string;
+            name: string;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: {
+                id: string;
+                name: string;
+                description: string;
+            };
+            warehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        };
+        assignments: {
+            data: {
+                id: string;
+                quantity: number;
+                availableQuantity: number;
+                soldQuantity: number;
+                assignedAt: Date;
+                shop: {
+                    id: string;
+                    name: string;
+                    location: string;
+                    isActive: boolean;
+                };
+                assignedBy: {
+                    id: string;
+                    username: string;
+                    fullName: string;
+                    role: import(".prisma/client").$Enums.UserRole;
+                };
+            }[];
+            page: number;
+            size: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrevious: boolean;
+        };
+        summary: {
+            totalAssignments: number;
+            totalQuantityAssigned: number;
+            totalQuantityAvailable: number;
+            totalQuantitySold: number;
+        };
+        filters: {
+            search: string | null;
+        };
+    }>;
+    getDashboardStats(userId?: string, userInfo?: {
+        role?: string;
+        shopId?: string;
+    }): Promise<{
+        totalProducts: number;
+        categories: number;
+        totalStock: number;
+        warehouses: number;
+        totalAssignments: number;
+        activeShops: number;
+        activeAssignments: number;
+        totalRevenue: number;
+        totalCollected: number;
+        partialPayments: number;
+        outstandingPayments: number;
+        totalOrders: number;
+        completedOrders: number;
+        pendingPayment: number;
+        readyForPickup: number;
+        orderStatusBreakdown: Record<string, number>;
+        accessInfo: {
+            scope: string;
+            shopId: string | null;
+            userRole: string;
+            isFiltered: boolean;
+        };
     }>;
     updateShopInventory(data: {
         assignmentId: string;
@@ -368,14 +614,14 @@ export declare class WarehouseService {
         success: boolean;
         message: string;
         assignment: {
+            warehouse: {
+                id: string;
+                name: string;
+            };
             shop: {
                 id: string;
                 name: string;
                 location: string;
-            };
-            warehouse: {
-                id: string;
-                name: string;
             };
             product: {
                 id: string;

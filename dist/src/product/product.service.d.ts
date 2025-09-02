@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CloudinaryService } from './cloudinary.service';
 export declare class ProductService {
@@ -19,44 +20,56 @@ export declare class ProductService {
         availableStock: number;
         category: string;
     }[]>;
-    findAllByUserId(userId: string): Promise<{
-        id: string;
-        name: string;
-        description: string;
-        price: number;
-        image: string | null;
-        totalStock: number;
-        availableStock: number;
-        category: string;
-        warehouse: {
+    findAllByUserId(userId: string, page?: number, size?: number, search?: string, warehouseId?: string): Promise<never[] | {
+        data: {
             id: string;
             name: string;
-            location: string;
-        };
-    }[] | {
-        id: string;
-        name: string;
-        description: string;
-        price: number;
-        image: string | null;
-        totalStock: number;
-        availableStock: number;
-        category: string;
-        assignedQuantity: number;
-        shopAvailableQuantity: number;
-        shopSoldQuantity: number;
-        assignedAt: Date;
-        assignmentWarehouse: {
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: string;
+            warehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+    } | {
+        data: {
             id: string;
             name: string;
-            location: string;
-        };
-        productWarehouse: {
-            id: string;
-            name: string;
-            location: string;
-        };
-    }[]>;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: string;
+            assignedQuantity: number;
+            shopAvailableQuantity: number;
+            shopSoldQuantity: number;
+            assignedAt: Date;
+            assignmentWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+            productWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+    }>;
     createCategory(data: any): Promise<{
         id: string;
         createdAt: Date;
@@ -145,7 +158,7 @@ export declare class ProductService {
         availableStock: number;
         categoryId: string;
     }[]>;
-    update(id: string, data: any): import(".prisma/client").Prisma.Prisma__ProductClient<{
+    update(id: string, data: any): Prisma.Prisma__ProductClient<{
         id: string;
         createdAt: Date;
         warehouseId: string;
@@ -156,7 +169,7 @@ export declare class ProductService {
         totalStock: number;
         availableStock: number;
         categoryId: string;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, Prisma.PrismaClientOptions>;
     uploadCSV(file: Express.Multer.File, warehouseId: string): Promise<{
         success: boolean;
         count: number;
@@ -226,4 +239,10 @@ export declare class ProductService {
         errors: string[] | undefined;
         warehousesProcessed: number;
     }>;
+    uploadAndReadXlsx(file: Express.Multer.File, userId: string): Promise<any>;
+    private processStockCountSheet;
+    private findColumnIndex;
+    private ensureDefaultCategory;
+    private processWarehouseSheet;
+    private processProductSheet;
 }

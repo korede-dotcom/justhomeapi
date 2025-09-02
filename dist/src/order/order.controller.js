@@ -23,11 +23,32 @@ let OrderController = class OrderController {
         this.orderService = orderService;
         this.logger = new common_2.Logger(order_service_1.OrderService.name);
     }
-    findAll(req) {
+    findAll(req, page, size, search, status, paymentStatus, startDate, endDate, shopId) {
         var _a, _b;
         const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
         this.logger.log(`Fetching orders for user: ${userId}`);
-        return this.orderService.getOrdersForUser(userId);
+        const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+        const parsedSize = Math.min(100, Math.max(1, parseInt(size || '20', 10) || 20));
+        let parsedStartDate;
+        let parsedEndDate;
+        if (startDate) {
+            parsedStartDate = new Date(startDate);
+            if (isNaN(parsedStartDate.getTime())) {
+                throw new Error('Invalid startDate format. Use ISO 8601 format (YYYY-MM-DD)');
+            }
+        }
+        if (endDate) {
+            parsedEndDate = new Date(endDate);
+            if (isNaN(parsedEndDate.getTime())) {
+                throw new Error('Invalid endDate format. Use ISO 8601 format (YYYY-MM-DD)');
+            }
+            parsedEndDate.setHours(23, 59, 59, 999);
+        }
+        const trimmedSearch = (search || '').trim();
+        const trimmedStatus = (status || '').trim();
+        const trimmedPaymentStatus = (paymentStatus || '').trim();
+        const trimmedShopId = (shopId || '').trim();
+        return this.orderService.getOrdersForUserWithPagination(userId, parsedPage, parsedSize, trimmedSearch || undefined, trimmedStatus || undefined, trimmedPaymentStatus || undefined, parsedStartDate, parsedEndDate, trimmedShopId || undefined);
     }
     findAllForStoreKeeper(req) {
         var _a, _b;
@@ -67,8 +88,16 @@ exports.OrderController = OrderController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('size')),
+    __param(3, (0, common_1.Query)('search')),
+    __param(4, (0, common_1.Query)('status')),
+    __param(5, (0, common_1.Query)('paymentStatus')),
+    __param(6, (0, common_1.Query)('startDate')),
+    __param(7, (0, common_1.Query)('endDate')),
+    __param(8, (0, common_1.Query)('shopId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], OrderController.prototype, "findAll", null);
 __decorate([

@@ -443,6 +443,18 @@ export declare class OrderService {
         updatedAt: Date;
     }>;
     updatePackager(id: string, data: any): Promise<{
+        message: string;
+        packager: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        } | null;
+        shop: {
+            id: string;
+            name: string;
+            location: string;
+        } | null;
         id: string;
         userId: string | null;
         attendeeId: string | null;
@@ -564,6 +576,120 @@ export declare class OrderService {
         createdAt: Date;
         updatedAt: Date;
     })[]>;
+    getOrdersForUserWithPagination(userId: string, page?: number, size?: number, search?: string, status?: string, paymentStatus?: string, startDate?: Date, endDate?: Date, shopId?: string): Promise<{
+        data: never[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+        filters?: undefined;
+    } | {
+        data: {
+            remainingBalance: number;
+            paymentPercentage: number;
+            orderSummary: {
+                totalItems: number;
+                totalProducts: number;
+                totalAmount: number;
+                paidAmount: number;
+                remainingBalance: number;
+            };
+            user: {
+                id: string;
+                username: string;
+                email: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            } | null;
+            attendee: {
+                id: string;
+                username: string;
+                email: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            } | null;
+            receptionist: {
+                id: string;
+                username: string;
+                email: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            } | null;
+            packager: {
+                id: string;
+                username: string;
+                email: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            } | null;
+            storekeeper: {
+                id: string;
+                username: string;
+                email: string;
+                fullName: string;
+                role: import(".prisma/client").$Enums.UserRole;
+            } | null;
+            shop: {
+                id: string;
+                name: string;
+                location: string;
+            } | null;
+            products: {
+                id: string;
+                name: string;
+                price: number;
+                image: string | null;
+                category: {
+                    name: string;
+                };
+            }[];
+            OrderItem: ({
+                product: {
+                    id: string;
+                    name: string;
+                    price: number;
+                    image: string | null;
+                    category: {
+                        name: string;
+                    };
+                };
+            } & {
+                id: string;
+                orderId: string;
+                productId: string;
+                quantity: number;
+            })[];
+            id: string;
+            userId: string | null;
+            attendeeId: string | null;
+            receptionistId: string | null;
+            packagerId: string | null;
+            storekeeperId: string | null;
+            shopId: string | null;
+            customerName: string;
+            customerPhone: string | null;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            totalAmount: number;
+            paidAmount: number;
+            receiptId: string;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+        filters: {
+            search: string | null;
+            status: string | null;
+            paymentStatus: string | null;
+            startDate: string | null;
+            endDate: string | null;
+            shopId: string | null;
+        };
+    }>;
     getOrdersByShop(shopId: string): Promise<({
         attendee: {
             id: string;

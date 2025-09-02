@@ -3,44 +3,56 @@ export declare class ProductController {
     private readonly productService;
     private readonly logger;
     constructor(productService: ProductService);
-    findAll(req: any): Promise<{
-        id: string;
-        name: string;
-        description: string;
-        price: number;
-        image: string | null;
-        totalStock: number;
-        availableStock: number;
-        category: string;
-        warehouse: {
+    findAll(req: any, page?: string, size?: string, search?: string, warehouseId?: string): Promise<never[] | {
+        data: {
             id: string;
             name: string;
-            location: string;
-        };
-    }[] | {
-        id: string;
-        name: string;
-        description: string;
-        price: number;
-        image: string | null;
-        totalStock: number;
-        availableStock: number;
-        category: string;
-        assignedQuantity: number;
-        shopAvailableQuantity: number;
-        shopSoldQuantity: number;
-        assignedAt: Date;
-        assignmentWarehouse: {
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: string;
+            warehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+    } | {
+        data: {
             id: string;
             name: string;
-            location: string;
-        };
-        productWarehouse: {
-            id: string;
-            name: string;
-            location: string;
-        };
-    }[]>;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            category: string;
+            assignedQuantity: number;
+            shopAvailableQuantity: number;
+            shopSoldQuantity: number;
+            assignedAt: Date;
+            assignmentWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+            productWarehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+        }[];
+        page: number;
+        size: number;
+        total: number;
+        totalPages: number;
+    }>;
     createCategory(data: any): Promise<{
         id: string;
         createdAt: Date;
@@ -162,4 +174,5 @@ export declare class ProductController {
         errors: string[] | undefined;
         warehousesProcessed: number;
     }>;
+    uploadXlsx(file: Express.Multer.File, req: any): Promise<any>;
 }
