@@ -425,6 +425,7 @@ let UserService = UserService_1 = class UserService {
         }
     }
     update(id, data) {
+        this.logger.log(`${JSON.stringify(data)}`);
         return this.prisma.user.update({ where: { id }, data });
     }
     async getActivityLogs(limit = 50, userId) {

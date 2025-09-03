@@ -493,6 +493,7 @@ async findAllPackager(userId?: string, query?: { page?: number; size?: number; s
 }
 
   update(id: string, data: any) {
+    this.logger.log(`${JSON.stringify(data)}`);
     return this.prisma.user.update({ where: { id }, data });
   }
 

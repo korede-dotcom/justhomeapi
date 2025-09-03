@@ -28,8 +28,9 @@ export declare class AuthService {
             email: string;
             role: import(".prisma/client").$Enums.UserRole;
             fullName: string;
-            isActive: boolean;
+            isActive: true;
             shopId: string | null;
+            lastLogin: Date;
         };
         message: string;
     } | null>;

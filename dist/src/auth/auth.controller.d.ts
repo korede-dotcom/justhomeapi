@@ -11,8 +11,9 @@ export declare class AuthController {
             email: string;
             role: import(".prisma/client").$Enums.UserRole;
             fullName: string;
-            isActive: boolean;
+            isActive: true;
             shopId: string | null;
+            lastLogin: Date;
         };
         message: string;
     }>;
