@@ -67,6 +67,35 @@ export class ProductController {
     return this.productService.findAllCategories();
   }
 
+  @Get('warehouse/:warehouseId')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  async getWarehouseProducts(
+    @Param('warehouseId') warehouseId: string,
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('size') size?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string
+  ) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    const userRole = req.user?.role;
+
+    const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+    const parsedSize = Math.min(100, Math.max(1, parseInt(size || '25', 10) || 25));
+
+    return this.productService.getWarehouseProducts(
+      warehouseId,
+      {
+        page: parsedPage,
+        size: parsedSize,
+        search: search?.trim(),
+        category: category?.trim()
+      },
+      userId,
+      { role: userRole }
+    );
+  }
+
   @Post('upload')
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   @UseInterceptors(FileInterceptor('file'))

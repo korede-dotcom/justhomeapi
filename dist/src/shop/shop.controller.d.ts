@@ -3,18 +3,18 @@ export declare class ShopController {
     private readonly shopService;
     constructor(shopService: ShopService);
     create(data: any): Promise<{
-        users: {
-            id: string;
-            username: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        }[];
         manager: {
             id: string;
             username: string;
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
         } | null;
+        users: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        }[];
     } & {
         id: string;
         isActive: boolean;
@@ -28,18 +28,18 @@ export declare class ShopController {
             users: number;
             productAssignments: number;
         };
-        users: {
-            id: string;
-            username: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        }[];
         manager: {
             id: string;
             username: string;
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
         } | null;
+        users: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        }[];
         productAssignments: ({
             product: {
                 category: {
@@ -65,10 +65,10 @@ export declare class ShopController {
             shopId: string;
             warehouseId: string;
             quantity: number;
+            productId: string;
             availableQuantity: number;
             soldQuantity: number;
             assignedAt: Date;
-            productId: string;
             assignedBy: string;
         })[];
     } & {
@@ -80,18 +80,18 @@ export declare class ShopController {
         managerId: string | null;
     })[]>;
     findOne(id: string): Promise<{
-        users: {
-            id: string;
-            username: string;
-            fullName: string;
-            role: import(".prisma/client").$Enums.UserRole;
-        }[];
         manager: {
             id: string;
             username: string;
             fullName: string;
             role: import(".prisma/client").$Enums.UserRole;
         } | null;
+        users: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+        }[];
         productAssignments: ({
             product: {
                 category: {
@@ -117,10 +117,10 @@ export declare class ShopController {
             shopId: string;
             warehouseId: string;
             quantity: number;
+            productId: string;
             availableQuantity: number;
             soldQuantity: number;
             assignedAt: Date;
-            productId: string;
             assignedBy: string;
         })[];
     } & {
@@ -188,10 +188,10 @@ export declare class ShopController {
                 shopId: string;
                 warehouseId: string;
                 quantity: number;
+                productId: string;
                 availableQuantity: number;
                 soldQuantity: number;
                 assignedAt: Date;
-                productId: string;
                 assignedBy: string;
             })[];
         } & {

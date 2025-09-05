@@ -12,6 +12,8 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaService } from 'prisma/prisma.service';
 import { ShopModule } from './shop/shop.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
+import { ProductAssignmentRequestModule } from './product-assignment-request/product-assignment-request.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -23,7 +25,9 @@ import { WarehouseModule } from './warehouse/warehouse.module';
     ActivityLogModule,
     PendingChangeModule,
     ShopModule,
-    WarehouseModule
+    WarehouseModule,
+    ProductAssignmentRequestModule,
+    DashboardModule
   ],
   providers: [
     PrismaService,

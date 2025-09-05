@@ -71,6 +71,8 @@ model User {
   storedOrders      Order[]             @relation("StoredOrders")
   ActivityLog       ActivityLog[]
   assignedProducts  ProductAssignment[] @relation("AssignedBy")
+  requestedAssignments ProductAssignmentRequest[] @relation("RequestedAssignments")
+  reviewedAssignments  ProductAssignmentRequest[] @relation("ReviewedAssignments")
 }
 
 model Shop {
@@ -85,6 +87,7 @@ model Shop {
 
   users              User[]              // Users that belong to this shop
   productAssignments ProductAssignment[]
+  assignmentRequests ProductAssignmentRequest[]
   orders             Order[]             // Orders from this shop
 }
 
@@ -101,6 +104,7 @@ model Warehouse {
   users              User[]              @relation("UsersInWarehouse")
   products           Product[]
   productAssignments ProductAssignment[]
+  assignmentRequests ProductAssignmentRequest[]
 }
 
 model ActivityLog {
@@ -133,6 +137,7 @@ model Product {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
   assignments ProductAssignment[]
+  assignmentRequests ProductAssignmentRequest[]
 }
 
 model Category {
@@ -219,4 +224,35 @@ model ProductAssignment {
 
   assignedBy String
   assignedByUser User @relation("AssignedBy", fields: [assignedBy], references: [id])
+}
+
+enum AssignmentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ProductAssignmentRequest {
+  id          String   @id @default(uuid())
+  quantity    Int      // Requested quantity to assign to shop
+  reason      String?  // Optional reason for the assignment request
+  status      AssignmentRequestStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  reviewedAt  DateTime?
+  reviewNotes String?  // Admin/CEO notes when approving/rejecting
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  requestedBy String
+  requestedByUser User @relation("RequestedAssignments", fields: [requestedBy], references: [id])
+
+  reviewedBy String?
+  reviewedByUser User? @relation("ReviewedAssignments", fields: [reviewedBy], references: [id])
 }

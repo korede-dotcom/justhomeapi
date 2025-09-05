@@ -1170,4 +1170,141 @@ async create(data: any) {
       }
     }
   }
+
+  async getWarehouseProducts(
+    warehouseId: string,
+    query?: { page?: number; size?: number; search?: string; category?: string },
+    userId?: string,
+    userInfo?: { role?: string }
+  ) {
+    try {
+      this.logger.debug(`Fetching products from warehouse ${warehouseId} for user ${userId} with role ${userInfo?.role}`);
+
+      const page = query?.page || 1;
+      const size = Math.min(query?.size || 25, 100);
+      const search = query?.search;
+      const category = query?.category;
+
+      // Verify warehouse exists
+      const warehouse = await this.prisma.warehouse.findUnique({
+        where: { id: warehouseId },
+        select: { id: true, name: true, location: true, isActive: true }
+      });
+
+      if (!warehouse) {
+        throw new NotFoundException(`Warehouse with ID ${warehouseId} not found`);
+      }
+
+      // Check access permissions for WarehouseKeeper
+      if (userId && userInfo?.role === 'WarehouseKeeper') {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            managedWarehouses: {
+              select: { id: true }
+            }
+          }
+        });
+
+        if (!user) {
+          throw new BadRequestException(`User with ID ${userId} not found`);
+        }
+
+        const managedWarehouseIds = user.managedWarehouses.map(w => w.id);
+
+        if (!managedWarehouseIds.includes(warehouseId)) {
+          throw new BadRequestException(`Access denied. WarehouseKeeper ${userId} does not manage warehouse ${warehouseId}`);
+        }
+
+        this.logger.debug(`WarehouseKeeper ${userId} has access to warehouse ${warehouseId}`);
+      }
+
+      // Build where clause for products
+      const whereClause: any = {
+        warehouseId: warehouseId
+      };
+
+      if (search) {
+        whereClause.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ];
+      }
+
+      if (category) {
+        whereClause.category = {
+          name: { contains: category, mode: 'insensitive' }
+        };
+      }
+
+      // Get products with pagination
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where: whereClause,
+          include: {
+            category: {
+              select: { id: true, name: true, description: true }
+            },
+            warehouse: {
+              select: { id: true, name: true, location: true }
+            },
+            _count: {
+              select: {
+                assignments: true
+              }
+            }
+          },
+          orderBy: { name: 'asc' },
+          skip: (page - 1) * size,
+          take: size
+        }),
+        this.prisma.product.count({
+          where: whereClause
+        })
+      ]);
+
+      const totalPages = Math.ceil(total / size);
+
+      // Calculate stock statistics
+      const stockStats = products.reduce((acc, product) => {
+        acc.totalStock += product.totalStock;
+        acc.availableStock += product.availableStock;
+        acc.assignedStock += (product.totalStock - product.availableStock);
+        return acc;
+      }, { totalStock: 0, availableStock: 0, assignedStock: 0 });
+
+      this.logger.log(`Retrieved ${products.length} products from warehouse ${warehouse.name}`);
+
+      return {
+        data: products,
+        warehouse: warehouse,
+        pagination: {
+          page,
+          size,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrevious: page > 1
+        },
+        summary: {
+          totalProducts: total,
+          productsOnPage: products.length,
+          stockStats,
+          outOfStockProducts: products.filter(p => p.availableStock === 0).length,
+          lowStockProducts: products.filter(p => p.availableStock > 0 && p.availableStock <= 10).length
+        },
+        filters: {
+          search: search || null,
+          category: category || null
+        }
+      };
+
+    } catch (error: any) {
+      this.logger.error(`Failed to fetch products from warehouse ${warehouseId}: ${error.message}`);
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to fetch warehouse products: ${error.message}`);
+    }
+  }
 }

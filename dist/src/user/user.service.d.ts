@@ -277,6 +277,12 @@ export declare class UserService {
             description: string | null;
             managerId: string | null;
         } | null;
+        managedWarehouses: {
+            id: string;
+            isActive: boolean;
+            name: string;
+            location: string;
+        }[];
         id: string;
         username: string;
         email: string;
@@ -303,6 +309,51 @@ export declare class UserService {
         shopId: string | null;
         warehouseId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    assignWarehouseToUser(userId: string, warehouseId: string): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            warehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            shop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        };
+    }>;
+    assignWarehousesToMultipleUsers(warehouseId: string, userIds: string[]): Promise<{
+        success: boolean;
+        message: string;
+        updatedCount: number;
+        users: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            warehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            shop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        }[];
+    }>;
     getActivityLogs(limit?: number, userId?: string): Promise<({
         user: {
             id: string;
@@ -320,4 +371,198 @@ export declare class UserService {
         ipAddress: string | null;
         userAgent: string | null;
     })[]>;
+    assignMultipleWarehousesToUser(userId: string, warehouseIds: string[]): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            assignedWarehouse?: undefined;
+            assignedShop?: undefined;
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAssignedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            assignedWarehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            assignedShop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAssignedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+    }>;
+    addWarehousesToKeeper(keeperId: string, warehouseIds: string[]): Promise<{
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAddedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAddedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+    }>;
+    removeWarehousesFromKeeper(keeperId: string, warehouseIds: string[]): Promise<{
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            removedAssignments: number;
+            notManaging: number;
+            removedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            removedAssignments: number;
+            removedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            notManaging?: undefined;
+        };
+    }>;
+    getManagedWarehouses(keeperId: string, requestingUserId: string, requestingUserRole: string): Promise<{
+        success: boolean;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            isActive: boolean;
+        };
+        managedWarehouses: {
+            id: string;
+            isActive: boolean;
+            _count: {
+                users: number;
+                productAssignments: number;
+                products: number;
+            };
+            name: string;
+            location: string;
+            description: string | null;
+        }[];
+        summary: {
+            totalManagedWarehouses: number;
+            activeWarehouses: number;
+            inactiveWarehouses: number;
+            totalProducts: number;
+            totalUsers: number;
+            totalAssignments: number;
+        };
+        accessInfo: {
+            requestedBy: string;
+            requestingUserRole: string;
+            isAdminRequest: boolean;
+            isSelfRequest: boolean;
+        };
+    }>;
 }

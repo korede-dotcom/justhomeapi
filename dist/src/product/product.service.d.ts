@@ -245,4 +245,68 @@ export declare class ProductService {
     private ensureDefaultCategory;
     private processWarehouseSheet;
     private processProductSheet;
+    getWarehouseProducts(warehouseId: string, query?: {
+        page?: number;
+        size?: number;
+        search?: string;
+        category?: string;
+    }, userId?: string, userInfo?: {
+        role?: string;
+    }): Promise<{
+        data: ({
+            warehouse: {
+                id: string;
+                name: string;
+                location: string;
+            };
+            _count: {
+                assignments: number;
+            };
+            category: {
+                id: string;
+                name: string;
+                description: string;
+            };
+        } & {
+            id: string;
+            createdAt: Date;
+            warehouseId: string;
+            name: string;
+            description: string;
+            price: number;
+            image: string | null;
+            totalStock: number;
+            availableStock: number;
+            categoryId: string;
+        })[];
+        warehouse: {
+            id: string;
+            isActive: boolean;
+            name: string;
+            location: string;
+        };
+        pagination: {
+            page: number;
+            size: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrevious: boolean;
+        };
+        summary: {
+            totalProducts: number;
+            productsOnPage: number;
+            stockStats: {
+                totalStock: number;
+                availableStock: number;
+                assignedStock: number;
+            };
+            outOfStockProducts: number;
+            lowStockProducts: number;
+        };
+        filters: {
+            search: string | null;
+            category: string | null;
+        };
+    }>;
 }

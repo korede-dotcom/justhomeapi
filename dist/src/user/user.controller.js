@@ -16,7 +16,11 @@ exports.UserController = void 0;
 const common_1 = require("@nestjs/common");
 const user_service_1 = require("./user.service");
 const user_pagination_dto_1 = require("./dto/user-pagination.dto");
+const warehouse_assignment_dto_1 = require("./dto/warehouse-assignment.dto");
+const create_user_dto_1 = require("./dto/create-user.dto");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const roles_guard_1 = require("../auth/roles.guard");
 let UserController = class UserController {
     constructor(userService) {
         this.userService = userService;
@@ -48,8 +52,8 @@ let UserController = class UserController {
         const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
         return this.userService.findAllPackager(userId, query);
     }
-    create(data) {
-        return this.userService.createUser(data);
+    create(createUserDto) {
+        return this.userService.createUser(createUserDto);
     }
     update(id, data) {
         return this.userService.update(id, data);
@@ -61,6 +65,27 @@ let UserController = class UserController {
     getUserActivityLogs(userId, limit) {
         const limitNum = limit ? parseInt(limit) : 50;
         return this.userService.getActivityLogs(limitNum, userId);
+    }
+    assignWarehouseToUser(userId, assignWarehouseDto) {
+        return this.userService.assignWarehouseToUser(userId, assignWarehouseDto.warehouseId || "none");
+    }
+    assignMultipleWarehousesToUser(userId, assignWarehousesDto) {
+        return this.userService.assignMultipleWarehousesToUser(userId, assignWarehousesDto.warehouseIds);
+    }
+    assignWarehouseToMultipleUsers(assignWarehouseDto) {
+        return this.userService.assignWarehousesToMultipleUsers(assignWarehouseDto.warehouseId || "none", assignWarehouseDto.userIds);
+    }
+    addWarehousesToKeeper(keeperId, addWarehousesDto) {
+        return this.userService.addWarehousesToKeeper(keeperId, addWarehousesDto.warehouseIds);
+    }
+    removeWarehousesFromKeeper(keeperId, removeWarehousesDto) {
+        return this.userService.removeWarehousesFromKeeper(keeperId, removeWarehousesDto.warehouseIds);
+    }
+    getManagedWarehouses(keeperId, req) {
+        var _a, _b, _c;
+        const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        const requestingUserRole = (_c = req.user) === null || _c === void 0 ? void 0 : _c.role;
+        return this.userService.getManagedWarehouses(keeperId, requestingUserId, requestingUserRole);
     }
 };
 exports.UserController = UserController;
@@ -91,7 +116,7 @@ __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "create", null);
 __decorate([
@@ -118,8 +143,61 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "getUserActivityLogs", null);
+__decorate([
+    (0, common_1.Post)(':id/assign-warehouse'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, warehouse_assignment_dto_1.AssignWarehouseDto]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "assignWarehouseToUser", null);
+__decorate([
+    (0, common_1.Post)(':id/assign-multiple-warehouses'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, warehouse_assignment_dto_1.AssignMultipleWarehousesToUserDto]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "assignMultipleWarehousesToUser", null);
+__decorate([
+    (0, common_1.Post)('assign-warehouse-multiple'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [warehouse_assignment_dto_1.AssignWarehouseToMultipleUsersDto]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "assignWarehouseToMultipleUsers", null);
+__decorate([
+    (0, common_1.Post)(':keeperId/add-warehouses'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin'),
+    __param(0, (0, common_1.Param)('keeperId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, warehouse_assignment_dto_1.AddWarehousesToKeeperDto]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "addWarehousesToKeeper", null);
+__decorate([
+    (0, common_1.Post)(':keeperId/remove-warehouses'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin'),
+    __param(0, (0, common_1.Param)('keeperId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, warehouse_assignment_dto_1.RemoveWarehousesFromKeeperDto]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "removeWarehousesFromKeeper", null);
+__decorate([
+    (0, common_1.Get)(':keeperId/managed-warehouses'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.Param)('keeperId')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "getManagedWarehouses", null);
 exports.UserController = UserController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [user_service_1.UserService])
 ], UserController);

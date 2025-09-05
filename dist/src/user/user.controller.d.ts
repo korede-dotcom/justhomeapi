@@ -1,5 +1,7 @@
 import { UserService } from './user.service';
 import { UserPaginationDto } from './dto/user-pagination.dto';
+import { AssignWarehouseDto, AssignWarehouseToMultipleUsersDto, AssignMultipleWarehousesToUserDto, AddWarehousesToKeeperDto, RemoveWarehousesFromKeeperDto } from './dto/warehouse-assignment.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
@@ -248,7 +250,7 @@ export declare class UserController {
         };
         packagers?: undefined;
     }>;
-    create(data: any): Promise<{
+    create(createUserDto: CreateUserDto): Promise<{
         shop: {
             id: string;
             isActive: boolean;
@@ -265,6 +267,12 @@ export declare class UserController {
             description: string | null;
             managerId: string | null;
         } | null;
+        managedWarehouses: {
+            id: string;
+            isActive: boolean;
+            name: string;
+            location: string;
+        }[];
         id: string;
         username: string;
         email: string;
@@ -325,4 +333,243 @@ export declare class UserController {
         ipAddress: string | null;
         userAgent: string | null;
     })[]>;
+    assignWarehouseToUser(userId: string, assignWarehouseDto: AssignWarehouseDto): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            warehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            shop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        };
+    }>;
+    assignMultipleWarehousesToUser(userId: string, assignWarehousesDto: AssignMultipleWarehousesToUserDto): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            assignedWarehouse?: undefined;
+            assignedShop?: undefined;
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAssignedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            assignedWarehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            assignedShop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAssignedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+    }>;
+    assignWarehouseToMultipleUsers(assignWarehouseDto: AssignWarehouseToMultipleUsersDto): Promise<{
+        success: boolean;
+        message: string;
+        updatedCount: number;
+        users: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            warehouse: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+            shop: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            } | null;
+        }[];
+    }>;
+    addWarehousesToKeeper(keeperId: string, addWarehousesDto: AddWarehousesToKeeperDto): Promise<{
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAddedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            newAssignments: number;
+            alreadyManaging: number;
+            newlyAddedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+    }>;
+    removeWarehousesFromKeeper(keeperId: string, removeWarehousesDto: RemoveWarehousesFromKeeperDto): Promise<{
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            removedAssignments: number;
+            notManaging: number;
+            removedWarehouses?: undefined;
+        };
+    } | {
+        success: boolean;
+        message: string;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: import(".prisma/client").$Enums.UserRole;
+            managedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+        };
+        summary: {
+            totalManagedWarehouses: number;
+            removedAssignments: number;
+            removedWarehouses: {
+                id: string;
+                isActive: boolean;
+                name: string;
+                location: string;
+            }[];
+            notManaging?: undefined;
+        };
+    }>;
+    getManagedWarehouses(keeperId: string, req: any): Promise<{
+        success: boolean;
+        keeper: {
+            id: string;
+            username: string;
+            fullName: string;
+            role: "WarehouseKeeper";
+            isActive: boolean;
+        };
+        managedWarehouses: {
+            id: string;
+            isActive: boolean;
+            _count: {
+                users: number;
+                productAssignments: number;
+                products: number;
+            };
+            name: string;
+            location: string;
+            description: string | null;
+        }[];
+        summary: {
+            totalManagedWarehouses: number;
+            activeWarehouses: number;
+            inactiveWarehouses: number;
+            totalProducts: number;
+            totalUsers: number;
+            totalAssignments: number;
+        };
+        accessInfo: {
+            requestedBy: string;
+            requestingUserRole: string;
+            isAdminRequest: boolean;
+            isSelfRequest: boolean;
+        };
+    }>;
 }

@@ -1,9 +1,13 @@
 import { Controller, Get, Post, Body, Param, Patch, Request, Query, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserPaginationDto } from './dto/user-pagination.dto';
+import { AssignWarehouseDto, AssignWarehouseToMultipleUsersDto, AssignMultipleWarehousesToUserDto, AddWarehousesToKeeperDto, RemoveWarehousesFromKeeperDto } from './dto/warehouse-assignment.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -41,8 +45,8 @@ export class UserController {
   }
 
   @Post()
-  create(@Body() data: any) {
-    return this.userService.createUser(data);
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.userService.createUser(createUserDto);
   }
 
   @Patch(':id')
@@ -60,5 +64,63 @@ export class UserController {
   getUserActivityLogs(@Param('id') userId: string, @Query('limit') limit?: string) {
     const limitNum = limit ? parseInt(limit) : 50;
     return this.userService.getActivityLogs(limitNum, userId);
+  }
+
+  @Post(':id/assign-warehouse')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  assignWarehouseToUser(
+    @Param('id') userId: string,
+    @Body() assignWarehouseDto: AssignWarehouseDto
+  ) {
+    return this.userService.assignWarehouseToUser(userId, assignWarehouseDto.warehouseId || "none");
+  }
+
+  @Post(':id/assign-multiple-warehouses')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  assignMultipleWarehousesToUser(
+    @Param('id') userId: string,
+    @Body() assignWarehousesDto: AssignMultipleWarehousesToUserDto
+  ) {
+    return this.userService.assignMultipleWarehousesToUser(userId, assignWarehousesDto.warehouseIds);
+  }
+
+  @Post('assign-warehouse-multiple')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  assignWarehouseToMultipleUsers(
+    @Body() assignWarehouseDto: AssignWarehouseToMultipleUsersDto
+  ) {
+    return this.userService.assignWarehousesToMultipleUsers(
+      assignWarehouseDto.warehouseId || "none",
+      assignWarehouseDto.userIds
+    );
+  }
+
+  @Post(':keeperId/add-warehouses')
+  @Roles('CEO', 'Admin')
+  addWarehousesToKeeper(
+    @Param('keeperId') keeperId: string,
+    @Body() addWarehousesDto: AddWarehousesToKeeperDto
+  ) {
+    return this.userService.addWarehousesToKeeper(keeperId, addWarehousesDto.warehouseIds);
+  }
+
+  @Post(':keeperId/remove-warehouses')
+  @Roles('CEO', 'Admin')
+  removeWarehousesFromKeeper(
+    @Param('keeperId') keeperId: string,
+    @Body() removeWarehousesDto: RemoveWarehousesFromKeeperDto
+  ) {
+    return this.userService.removeWarehousesFromKeeper(keeperId, removeWarehousesDto.warehouseIds);
+  }
+
+  @Get(':keeperId/managed-warehouses')
+  @Roles('CEO', 'Admin', 'WarehouseKeeper')
+  getManagedWarehouses(
+    @Param('keeperId') keeperId: string,
+    @Request() req: any
+  ) {
+    const requestingUserId = req.user?.userId || req.user?.id || req.user;
+    const requestingUserRole = req.user?.role;
+    return this.userService.getManagedWarehouses(keeperId, requestingUserId, requestingUserRole);
   }
 }

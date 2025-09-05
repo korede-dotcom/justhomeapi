@@ -25,9 +25,11 @@ let WarehouseService = WarehouseService_1 = class WarehouseService {
                 name: data.name,
                 location: data.location,
                 description: data.description,
-                managerId: data.managerId,
                 isActive: data.isActive !== undefined ? data.isActive : true
             };
+            if (data.managerId && data.managerId !== "none" && data.managerId.trim() !== "") {
+                validData.managerId = data.managerId;
+            }
             Object.keys(validData).forEach(key => {
                 if (validData[key] === undefined) {
                     delete validData[key];
@@ -72,47 +74,110 @@ let WarehouseService = WarehouseService_1 = class WarehouseService {
             }
         }
     }
-    async findAll() {
-        return this.prisma.warehouse.findMany({
-            include: {
-                manager: {
-                    select: { id: true, username: true, fullName: true, role: true, email: true }
-                },
-                users: {
-                    select: { id: true, username: true, fullName: true, role: true, email: true }
-                },
-                products: {
-                    include: {
-                        category: {
-                            select: { id: true, name: true, description: true }
+    async findAll(userId, userInfo) {
+        this.logger.debug(`Fetching warehouses for user ${userId} with role ${userInfo === null || userInfo === void 0 ? void 0 : userInfo.role}`);
+        try {
+            let whereClause = {};
+            if (userId && (userInfo === null || userInfo === void 0 ? void 0 : userInfo.role)) {
+                const isGlobalUser = ['CEO', 'Admin'].includes(userInfo.role);
+                if (!isGlobalUser && userInfo.role === 'WarehouseKeeper') {
+                    this.logger.debug(`Filtering warehouses for WarehouseKeeper ${userId}`);
+                    const user = await this.prisma.user.findUnique({
+                        where: { id: userId },
+                        select: {
+                            managedWarehouses: {
+                                select: { id: true }
+                            }
                         }
+                    });
+                    if (!user) {
+                        throw new common_1.BadRequestException(`User with ID ${userId} not found`);
                     }
-                },
-                productAssignments: {
-                    include: {
-                        product: {
-                            select: { id: true, name: true, price: true }
-                        },
-                        shop: {
-                            select: { id: true, name: true, location: true }
-                        },
-                        assignedByUser: {
-                            select: { id: true, username: true, fullName: true }
+                    const managedWarehouseIds = user.managedWarehouses.map(w => w.id);
+                    if (managedWarehouseIds.length === 0) {
+                        this.logger.warn(`WarehouseKeeper ${userId} has no managed warehouses`);
+                        return [];
+                    }
+                    whereClause = {
+                        id: { in: managedWarehouseIds }
+                    };
+                    this.logger.debug(`WarehouseKeeper ${userId} can access ${managedWarehouseIds.length} warehouses: ${managedWarehouseIds.join(', ')}`);
+                }
+                else if (!isGlobalUser) {
+                    if (userInfo.shopId) {
+                        const shopAssignments = await this.prisma.productAssignment.findMany({
+                            where: { shopId: userInfo.shopId },
+                            select: { warehouseId: true },
+                            distinct: ['warehouseId']
+                        });
+                        const accessibleWarehouseIds = shopAssignments.map(a => a.warehouseId);
+                        if (accessibleWarehouseIds.length === 0) {
+                            this.logger.warn(`User ${userId} from shop ${userInfo.shopId} has no accessible warehouses`);
+                            return [];
                         }
+                        whereClause = {
+                            id: { in: accessibleWarehouseIds }
+                        };
+                        this.logger.debug(`Shop user ${userId} can access ${accessibleWarehouseIds.length} warehouses through product assignments`);
                     }
-                },
-                _count: {
-                    select: {
-                        products: true,
-                        users: true,
-                        productAssignments: true
+                    else {
+                        this.logger.warn(`Non-admin user ${userId} has no shop assignment`);
+                        return [];
                     }
                 }
-            },
-            orderBy: {
-                name: 'asc'
+                else {
+                    this.logger.debug(`Admin/CEO user ${userId} can access all warehouses`);
+                }
             }
-        });
+            return this.prisma.warehouse.findMany({
+                where: whereClause,
+                include: {
+                    manager: {
+                        select: { id: true, username: true, fullName: true, role: true, email: true }
+                    },
+                    users: {
+                        select: { id: true, username: true, fullName: true, role: true, email: true }
+                    },
+                    products: {
+                        include: {
+                            category: {
+                                select: { id: true, name: true, description: true }
+                            }
+                        }
+                    },
+                    productAssignments: {
+                        include: {
+                            product: {
+                                select: { id: true, name: true, price: true }
+                            },
+                            shop: {
+                                select: { id: true, name: true, location: true }
+                            },
+                            assignedByUser: {
+                                select: { id: true, username: true, fullName: true }
+                            }
+                        }
+                    },
+                    _count: {
+                        select: {
+                            products: true,
+                            users: true,
+                            productAssignments: true
+                        }
+                    }
+                },
+                orderBy: {
+                    name: 'asc'
+                }
+            });
+        }
+        catch (error) {
+            this.logger.error(`Failed to fetch warehouses for user ${userId}: ${error.message}`);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to fetch warehouses: ${error.message}`);
+        }
     }
     async findOne(id) {
         const warehouse = await this.prisma.warehouse.findUnique({
@@ -492,8 +557,8 @@ let WarehouseService = WarehouseService_1 = class WarehouseService {
             throw new common_1.BadRequestException(`Failed to fetch products: ${error.message}`);
         }
     }
-    async getWarehouseProducts(warehouseId, query) {
-        this.logger.debug(`Fetching products from warehouse ${warehouseId}`);
+    async getWarehouseProducts(warehouseId, query, userId, userInfo) {
+        this.logger.debug(`Fetching products from warehouse ${warehouseId} for user ${userId} with role ${userInfo === null || userInfo === void 0 ? void 0 : userInfo.role}`);
         const page = (query === null || query === void 0 ? void 0 : query.page) || 1;
         const size = Math.min((query === null || query === void 0 ? void 0 : query.size) || 20, 100);
         const search = query === null || query === void 0 ? void 0 : query.search;
@@ -506,6 +571,24 @@ let WarehouseService = WarehouseService_1 = class WarehouseService {
             });
             if (!warehouse) {
                 throw new common_1.NotFoundException(`Warehouse with ID ${warehouseId} not found`);
+            }
+            if (userId && (userInfo === null || userInfo === void 0 ? void 0 : userInfo.role) === 'WarehouseKeeper') {
+                const user = await this.prisma.user.findUnique({
+                    where: { id: userId },
+                    select: {
+                        managedWarehouses: {
+                            select: { id: true }
+                        }
+                    }
+                });
+                if (!user) {
+                    throw new common_1.BadRequestException(`User with ID ${userId} not found`);
+                }
+                const managedWarehouseIds = user.managedWarehouses.map(w => w.id);
+                if (!managedWarehouseIds.includes(warehouseId)) {
+                    throw new common_1.BadRequestException(`Access denied. WarehouseKeeper ${userId} does not manage warehouse ${warehouseId}`);
+                }
+                this.logger.debug(`WarehouseKeeper ${userId} has access to warehouse ${warehouseId}`);
             }
             const whereClause = Object.assign(Object.assign({ warehouseId: warehouseId }, (search && {
                 OR: [

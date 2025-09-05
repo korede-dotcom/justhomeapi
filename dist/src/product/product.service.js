@@ -925,6 +925,116 @@ let ProductService = ProductService_1 = class ProductService {
             }
         }
     }
+    async getWarehouseProducts(warehouseId, query, userId, userInfo) {
+        try {
+            this.logger.debug(`Fetching products from warehouse ${warehouseId} for user ${userId} with role ${userInfo === null || userInfo === void 0 ? void 0 : userInfo.role}`);
+            const page = (query === null || query === void 0 ? void 0 : query.page) || 1;
+            const size = Math.min((query === null || query === void 0 ? void 0 : query.size) || 25, 100);
+            const search = query === null || query === void 0 ? void 0 : query.search;
+            const category = query === null || query === void 0 ? void 0 : query.category;
+            const warehouse = await this.prisma.warehouse.findUnique({
+                where: { id: warehouseId },
+                select: { id: true, name: true, location: true, isActive: true }
+            });
+            if (!warehouse) {
+                throw new common_1.NotFoundException(`Warehouse with ID ${warehouseId} not found`);
+            }
+            if (userId && (userInfo === null || userInfo === void 0 ? void 0 : userInfo.role) === 'WarehouseKeeper') {
+                const user = await this.prisma.user.findUnique({
+                    where: { id: userId },
+                    select: {
+                        managedWarehouses: {
+                            select: { id: true }
+                        }
+                    }
+                });
+                if (!user) {
+                    throw new common_1.BadRequestException(`User with ID ${userId} not found`);
+                }
+                const managedWarehouseIds = user.managedWarehouses.map(w => w.id);
+                if (!managedWarehouseIds.includes(warehouseId)) {
+                    throw new common_1.BadRequestException(`Access denied. WarehouseKeeper ${userId} does not manage warehouse ${warehouseId}`);
+                }
+                this.logger.debug(`WarehouseKeeper ${userId} has access to warehouse ${warehouseId}`);
+            }
+            const whereClause = {
+                warehouseId: warehouseId
+            };
+            if (search) {
+                whereClause.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } }
+                ];
+            }
+            if (category) {
+                whereClause.category = {
+                    name: { contains: category, mode: 'insensitive' }
+                };
+            }
+            const [products, total] = await Promise.all([
+                this.prisma.product.findMany({
+                    where: whereClause,
+                    include: {
+                        category: {
+                            select: { id: true, name: true, description: true }
+                        },
+                        warehouse: {
+                            select: { id: true, name: true, location: true }
+                        },
+                        _count: {
+                            select: {
+                                assignments: true
+                            }
+                        }
+                    },
+                    orderBy: { name: 'asc' },
+                    skip: (page - 1) * size,
+                    take: size
+                }),
+                this.prisma.product.count({
+                    where: whereClause
+                })
+            ]);
+            const totalPages = Math.ceil(total / size);
+            const stockStats = products.reduce((acc, product) => {
+                acc.totalStock += product.totalStock;
+                acc.availableStock += product.availableStock;
+                acc.assignedStock += (product.totalStock - product.availableStock);
+                return acc;
+            }, { totalStock: 0, availableStock: 0, assignedStock: 0 });
+            this.logger.log(`Retrieved ${products.length} products from warehouse ${warehouse.name}`);
+            return {
+                data: products,
+                warehouse: warehouse,
+                pagination: {
+                    page,
+                    size,
+                    total,
+                    totalPages,
+                    hasNext: page < totalPages,
+                    hasPrevious: page > 1
+                },
+                summary: {
+                    totalProducts: total,
+                    productsOnPage: products.length,
+                    stockStats,
+                    outOfStockProducts: products.filter(p => p.availableStock === 0).length,
+                    lowStockProducts: products.filter(p => p.availableStock > 0 && p.availableStock <= 10).length
+                },
+                filters: {
+                    search: search || null,
+                    category: category || null
+                }
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to fetch products from warehouse ${warehouseId}: ${error.message}`);
+            if (error instanceof common_1.NotFoundException || error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to fetch warehouse products: ${error.message}`);
+        }
+    }
 };
 exports.ProductService = ProductService;
 exports.ProductService = ProductService = ProductService_1 = __decorate([

@@ -18,8 +18,13 @@ export class WarehouseController {
 
   @Get()
   @Roles('CEO', 'Admin', 'WarehouseKeeper','Storekeeper','Attendee','Receptionist','Packager')
-  findAll() {
-    return this.warehouseService.findAll();
+  findAll(@Request() req: any) {
+    const userId = req.user?.userId || req.user?.id || req.user;
+    const userInfo = {
+      role: req.user?.role,
+      shopId: req.user?.shopId
+    };
+    return this.warehouseService.findAll(userId, userInfo);
   }
 
   @Get('dashboard')
@@ -83,9 +88,15 @@ export class WarehouseController {
   @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
   getWarehouseProducts(
     @Param('warehouseId') warehouseId: string,
-    @Query() query: WarehouseProductsQueryDto
+    @Query() query: WarehouseProductsQueryDto,
+    @Request() req: any
   ) {
-    return this.warehouseService.getWarehouseProducts(warehouseId, query);
+    const userId = req.user?.userId || req.user?.id || req.user;
+    const userInfo = {
+      role: req.user?.role,
+      shopId: req.user?.shopId
+    };
+    return this.warehouseService.getWarehouseProducts(warehouseId, query, userId, userInfo);
   }
 
   @Get(':warehouseId/products/:productId')

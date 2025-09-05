@@ -26,8 +26,14 @@ let WarehouseController = class WarehouseController {
     create(data) {
         return this.warehouseService.create(data);
     }
-    findAll() {
-        return this.warehouseService.findAll();
+    findAll(req) {
+        var _a, _b, _c, _d;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        const userInfo = {
+            role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
+            shopId: (_d = req.user) === null || _d === void 0 ? void 0 : _d.shopId
+        };
+        return this.warehouseService.findAll(userId, userInfo);
     }
     async getDashboardStats(req) {
         var _a, _b, _c, _d;
@@ -61,8 +67,14 @@ let WarehouseController = class WarehouseController {
         const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
         return this.warehouseService.getAllProductsForNonAdmins(userId, query);
     }
-    getWarehouseProducts(warehouseId, query) {
-        return this.warehouseService.getWarehouseProducts(warehouseId, query);
+    getWarehouseProducts(warehouseId, query, req) {
+        var _a, _b, _c, _d;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        const userInfo = {
+            role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
+            shopId: (_d = req.user) === null || _d === void 0 ? void 0 : _d.shopId
+        };
+        return this.warehouseService.getWarehouseProducts(warehouseId, query, userId, userInfo);
     }
     getWarehouseProduct(warehouseId, productId, query) {
         return this.warehouseService.getWarehouseProduct(warehouseId, productId, query);
@@ -85,8 +97,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager'),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], WarehouseController.prototype, "findAll", null);
 __decorate([
@@ -160,8 +173,9 @@ __decorate([
     (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager'),
     __param(0, (0, common_1.Param)('warehouseId')),
     __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, warehouse_products_dto_1.WarehouseProductsQueryDto]),
+    __metadata("design:paramtypes", [String, warehouse_products_dto_1.WarehouseProductsQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], WarehouseController.prototype, "getWarehouseProducts", null);
 __decorate([

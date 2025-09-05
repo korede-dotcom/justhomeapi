@@ -16,13 +16,13 @@ export class ShopController {
   }
 
   @Get()
-  @Roles('CEO', 'Admin', 'Storekeeper', 'Receptionist', 'Packager', 'Attendee')
+  @Roles('CEO', 'Admin', 'Storekeeper', 'Receptionist', 'Packager', 'Attendee','WarehouseKeeper')
   findAll() {
     return this.shopService.findAll();
   }
 
   @Get(':id')
-  @Roles('CEO', 'Admin', 'Storekeeper', 'Receptionist', 'Packager', 'Attendee')
+  @Roles('CEO', 'Admin', 'Storekeeper', 'Receptionist', 'Packager', 'Attendee','WarehouseKeeper')
   findOne(@Param('id') id: string) {
     return this.shopService.findOne(id);
   }

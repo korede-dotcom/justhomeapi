@@ -20,6 +20,8 @@ const core_1 = require("@nestjs/core");
 const prisma_service_1 = require("../prisma/prisma.service");
 const shop_module_1 = require("./shop/shop.module");
 const warehouse_module_1 = require("./warehouse/warehouse.module");
+const product_assignment_request_module_1 = require("./product-assignment-request/product-assignment-request.module");
+const dashboard_module_1 = require("./dashboard/dashboard.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -34,7 +36,9 @@ exports.AppModule = AppModule = __decorate([
             activity_log_module_1.ActivityLogModule,
             pending_change_module_1.PendingChangeModule,
             shop_module_1.ShopModule,
-            warehouse_module_1.WarehouseModule
+            warehouse_module_1.WarehouseModule,
+            product_assignment_request_module_1.ProductAssignmentRequestModule,
+            dashboard_module_1.DashboardModule
         ],
         providers: [
             prisma_service_1.PrismaService,

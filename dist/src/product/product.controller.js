@@ -68,6 +68,19 @@ let ProductController = ProductController_1 = class ProductController {
     async getCategories() {
         return this.productService.findAllCategories();
     }
+    async getWarehouseProducts(warehouseId, req, page, size, search, category) {
+        var _a, _b, _c;
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        const userRole = (_c = req.user) === null || _c === void 0 ? void 0 : _c.role;
+        const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+        const parsedSize = Math.min(100, Math.max(1, parseInt(size || '25', 10) || 25));
+        return this.productService.getWarehouseProducts(warehouseId, {
+            page: parsedPage,
+            size: parsedSize,
+            search: search === null || search === void 0 ? void 0 : search.trim(),
+            category: category === null || category === void 0 ? void 0 : category.trim()
+        }, userId, { role: userRole });
+    }
     async uploadImage(file, body) {
         return this.productService.uploadForUrl(body, file);
     }
@@ -121,6 +134,19 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "getCategories", null);
+__decorate([
+    (0, common_1.Get)('warehouse/:warehouseId'),
+    (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
+    __param(0, (0, common_1.Param)('warehouseId')),
+    __param(1, (0, common_1.Request)()),
+    __param(2, (0, common_1.Query)('page')),
+    __param(3, (0, common_1.Query)('size')),
+    __param(4, (0, common_1.Query)('search')),
+    __param(5, (0, common_1.Query)('category')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "getWarehouseProducts", null);
 __decorate([
     (0, common_1.Post)('upload'),
     (0, roles_decorator_1.Roles)('CEO', 'Admin', 'WarehouseKeeper'),
