@@ -794,7 +794,11 @@ async create(data: any) {
         this.logger.log(`Processing stock count sheet: ${sheetName}`);
 
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false,  // This will convert numbers to strings, which might help with parsing
+          defval: ''   // Default value for empty cells
+        });
 
         // Filter out empty arrays
         const filteredData = jsonData.filter((row: any) =>
@@ -802,11 +806,17 @@ async create(data: any) {
         );
 
         this.logger.log(`Sheet "${sheetName}" contains ${filteredData.length} non-empty rows`);
+        this.logger.log(`Sheet "${sheetName}" first 3 rows: ${JSON.stringify(filteredData.slice(0, 3))}`);
 
         result.sheets[sheetName] = {
           rowCount: filteredData.length,
           data: filteredData
         };
+
+        if (filteredData.length === 0) {
+          this.logger.log(`Sheet "${sheetName}" contains no valid data. Skipping...`);
+          continue;
+        }
 
         // Process as stock count sheet
         await this.processStockCountSheet(sheetName, filteredData, result, userId);
@@ -840,32 +850,9 @@ async create(data: any) {
     try {
       this.logger.log(`Processing stock count sheet: ${sheetName}`);
 
-      // Extract location/warehouse name from sheet name or data
-      let warehouseName = sheetName;
-      let warehouseLocation = 'Unknown Location';
-
-      // Look for location information in the data
-      for (const row of jsonData) {
-        if (Array.isArray(row) && row.length > 1) {
-          const cellValue = row[1]?.toString() || '';
-          if (cellValue.includes('LOCATION:')) {
-            warehouseName = cellValue.replace('LOCATION:', '').trim();
-            break;
-          }
-        }
-      }
-
-      // If no location found in data, use sheet name
-      if (warehouseName === sheetName) {
-        warehouseName = sheetName;
-        // Try to extract location from sheet name
-        if (sheetName.includes('(') && sheetName.includes(')')) {
-          const match = sheetName.match(/\((.*?)\)/);
-          if (match) {
-            warehouseLocation = match[1];
-          }
-        }
-      }
+      // Use sheet name directly as warehouse name (e.g., "STORE 1")
+      const warehouseName = sheetName.trim();
+      const warehouseLocation = `Location for ${warehouseName}`;
 
       this.logger.log(`Creating warehouse: ${warehouseName} at ${warehouseLocation}`);
 
@@ -901,11 +888,18 @@ async create(data: any) {
       let headerRowIndex = -1;
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i];
-        if (Array.isArray(row) && row.length >= 4) {
+        if (Array.isArray(row) && row.length >= 2) { // Reduced minimum columns from 4 to 2
           const firstCell = row[0]?.toString().toLowerCase() || '';
           const secondCell = row[1]?.toString().toLowerCase() || '';
-          if (firstCell.includes('s/n') || secondCell.includes('name') || secondCell.includes('description')) {
+          const thirdCell = row[2]?.toString().toLowerCase() || '';
+
+          // Look for header indicators in any of the first few columns
+          if (firstCell.includes('s/n') ||
+              secondCell.includes('name') || secondCell.includes('description') ||
+              thirdCell.includes('name') || thirdCell.includes('description') ||
+              firstCell.includes('no') || firstCell.includes('number')) {
             headerRowIndex = i;
+            this.logger.log(`Found header row at index ${i}: [${row.slice(0, 5).join(', ')}...]`);
             break;
           }
         }
@@ -918,51 +912,124 @@ async create(data: any) {
 
       this.logger.log(`Found header row at index ${headerRowIndex}`);
       const headers = jsonData[headerRowIndex];
+      this.logger.log(`Headers found: ${JSON.stringify(headers)}`);
 
-      // Find column indices
-      const nameIndex = this.findColumnIndex(headers, ['name', 'description']);
+      // Find column indices - specifically looking for your column names
+      const nameIndex = this.findColumnIndex(headers, ['name /description of stock item(s)', 'name', 'description']);
       const unitIndex = this.findColumnIndex(headers, ['unit', 'measure']);
-      const stockIndex = this.findColumnIndex(headers, ['stock take', 'stock', 'quantity']);
+      const stockIndex = this.findColumnIndex(headers, ['stock take']);  // Only look for exact "stock take" column
 
       if (nameIndex === -1 || stockIndex === -1) {
-        result.summary.errors.push(`Required columns not found in sheet "${sheetName}". Need name/description and stock take columns.`);
+        result.summary.errors.push(`Required columns not found in sheet "${sheetName}". Need "Name /Description of stock item(s)" and "Stock take" columns.`);
         return;
       }
 
       this.logger.log(`Column indices - Name: ${nameIndex}, Unit: ${unitIndex}, Stock: ${stockIndex}`);
+      this.logger.log(`Processing sheet "${sheetName}" as warehouse "${warehouseName}"`);
+      this.logger.log(`Total rows to process: ${jsonData.length - headerRowIndex - 1}`);
+
+      // Show sample of what we'll be reading from each column
+      if (jsonData.length > headerRowIndex + 1) {
+        const sampleRow = jsonData[headerRowIndex + 1];
+        this.logger.log(`Sample row data: Name="${sampleRow[nameIndex]}", Stock="${sampleRow[stockIndex]}"`);
+        this.logger.log(`Full sample row: ${JSON.stringify(sampleRow)}`);
+
+        // Show first 3 data rows to debug column alignment
+        for (let i = 1; i <= Math.min(3, jsonData.length - headerRowIndex - 1); i++) {
+          const row = jsonData[headerRowIndex + i];
+          this.logger.log(`Row ${i}: [${row.map((cell: any, idx: number) => `${idx}:"${cell}"`).join(', ')}]`);
+        }
+      }
 
       // Process product rows
+      let processedCount = 0;
+      let skippedCount = 0;
+
       for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
         const row = jsonData[i];
 
         // Skip empty rows or rows that don't have enough data
         if (!Array.isArray(row) || row.length <= Math.max(nameIndex, stockIndex)) {
+          this.logger.debug(`Row ${i + 1}: Skipped - insufficient data. Row length: ${row?.length}, Required: ${Math.max(nameIndex, stockIndex) + 1}`);
+          skippedCount++;
           continue;
         }
 
         const productName = row[nameIndex]?.toString().trim();
-        const stockTake = parseInt(row[stockIndex]) || 0;
+        const stockTakeRaw = row[stockIndex];
+
+        // Better stock parsing - handle different data types and Excel formats
+        let stockTake = 0;
+        if (stockTakeRaw !== null && stockTakeRaw !== undefined && stockTakeRaw !== '') {
+          if (typeof stockTakeRaw === 'number') {
+            stockTake = Math.floor(Math.abs(stockTakeRaw)); // Use absolute value and floor
+          } else if (typeof stockTakeRaw === 'string') {
+            // Handle string values - remove commas, spaces, and other non-numeric chars
+            const cleanedStock = stockTakeRaw.replace(/[^\d.-]/g, '');
+            if (cleanedStock) {
+              const parsed = parseFloat(cleanedStock);
+              stockTake = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed));
+            }
+          } else {
+            // Try to convert other types to string first
+            const stringValue = String(stockTakeRaw);
+            const cleanedStock = stringValue.replace(/[^\d.-]/g, '');
+            if (cleanedStock) {
+              const parsed = parseFloat(cleanedStock);
+              stockTake = isNaN(parsed) ? 0 : Math.floor(Math.abs(parsed));
+            }
+          }
+        }
+
         const unit = unitIndex >= 0 ? row[unitIndex]?.toString().trim() : 'Pcs';
 
-        // Skip if no product name or invalid stock
-        if (!productName || stockTake <= 0) {
+        this.logger.log(`Row ${i + 1}: Name="${productName}", Stock Raw="${stockTakeRaw}" (type: ${typeof stockTakeRaw}), Parsed: ${stockTake}`);
+
+        // Skip if no product name - but allow zero stock (some items might be out of stock)
+        if (!productName || productName.length < 2) {
+          this.logger.debug(`Row ${i + 1}: Skipped - invalid product name. Name: "${productName}"`);
+          skippedCount++;
           continue;
         }
 
+        // Allow zero or negative stock - just set to 0 if negative
+        const finalStock = Math.max(0, stockTake);
+
         try {
-          // Create product with default category (you might want to create a default category first)
+          // Check if product already exists in this warehouse
+          const existingProduct = await this.prisma.product.findFirst({
+            where: {
+              name: productName,
+              warehouseId: warehouse.id
+            }
+          });
+
+          if (existingProduct) {
+            this.logger.debug(`Row ${i + 1}: Product "${productName}" already exists in warehouse ${warehouse.name}. Skipping.`);
+            skippedCount++;
+            continue;
+          }
+
+          // Create product with default category
           const defaultCategory = await this.ensureDefaultCategory();
 
           const productData = {
             name: productName,
-            description: `${productName} - Stock count item`,
+            description: `${productName} - Imported from ${warehouseName}`,
             price: 0, // Default price, can be updated later
             categoryId: defaultCategory.id,
             warehouseId: warehouse.id,
-            totalStock: stockTake,
-            availableStock: stockTake,
+            totalStock: finalStock,
+            availableStock: finalStock, // Both totalStock and availableStock set to final stock value
             image: null
           };
+
+          this.logger.log(`Creating product with data: ${JSON.stringify({
+            name: productData.name,
+            totalStock: productData.totalStock,
+            availableStock: productData.availableStock,
+            warehouseName: warehouseName
+          })}`);
 
           const createdProduct = await this.prisma.product.create({
             data: productData,
@@ -974,14 +1041,17 @@ async create(data: any) {
 
           result.products.push(createdProduct);
           result.summary.productsCreated++;
+          processedCount++;
 
-          this.logger.log(`Created product: ${createdProduct.name} with stock ${stockTake} in warehouse ${warehouse.name}`);
+          this.logger.log(`Created product: ${createdProduct.name} with stock ${finalStock} in warehouse ${warehouse.name}`);
 
         } catch (error: any) {
           result.summary.errors.push(`Row ${i + 1} in sheet "${sheetName}": Failed to create product "${productName}": ${error.message}`);
           this.logger.error(`Failed to create product "${productName}": ${error.message}`);
         }
       }
+
+      this.logger.log(`Sheet "${sheetName}" processing complete: ${processedCount} products created, ${skippedCount} rows skipped`);
 
     } catch (error: any) {
       result.summary.errors.push(`Failed to process sheet "${sheetName}": ${error.message}`);
@@ -990,14 +1060,28 @@ async create(data: any) {
   }
 
   private findColumnIndex(headers: any[], searchTerms: string[]): number {
+    this.logger.log(`Looking for columns in headers: ${JSON.stringify(headers)}`);
+    this.logger.log(`Search terms: ${JSON.stringify(searchTerms)}`);
+
     for (let i = 0; i < headers.length; i++) {
-      const header = headers[i]?.toString().toLowerCase() || '';
+      const header = headers[i]?.toString().toLowerCase().trim() || '';
       for (const term of searchTerms) {
-        if (header.includes(term.toLowerCase())) {
+        const searchTerm = term.toLowerCase().trim();
+
+        // For "stock take", require exact match or very close match
+        if (searchTerm === 'stock take') {
+          if (header === 'stock take' || header === 'stocktake' || header.includes('stock take')) {
+            this.logger.log(`Found exact stock take match: "${header}" at index ${i}`);
+            return i;
+          }
+        } else if (header.includes(searchTerm)) {
+          this.logger.log(`Found match: "${header}" contains "${searchTerm}" at index ${i}`);
           return i;
         }
       }
     }
+
+    this.logger.log(`No matching column found for terms: ${JSON.stringify(searchTerms)}`);
     return -1;
   }
 
