@@ -406,4 +406,39 @@ export declare class ProductService {
             itemCount: number;
         }[];
     }>;
+    ceoUpdateOrder(orderId: string, updateData: any, ceoId: string): Promise<{
+        success: boolean;
+        message: string;
+        order: {
+            id: string;
+            orderNumber: string;
+            receiptId: string;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
+            totalAmount: number;
+            paidAmount: number;
+            balanceAmount: any;
+            createdAt: Date;
+            updatedAt: Date;
+            customer: {
+                id: string | null;
+                name: string;
+                phone: string | null;
+                email: string | null;
+            };
+            items: {
+                id: any;
+                quantity: any;
+                product: any;
+            }[];
+            updateInfo: {
+                updatedBy: string;
+                paymentAmount: any;
+                paymentReference: any;
+                notes: any;
+                updatedAt: Date;
+            };
+        };
+    }>;
 }

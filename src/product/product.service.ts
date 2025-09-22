@@ -1815,4 +1815,146 @@ async create(data: any) {
       throw new BadRequestException(`Failed to clear pending orders: ${error.message}`);
     }
   }
+
+  async ceoUpdateOrder(orderId: string, updateData: any, ceoId: string) {
+    try {
+      this.logger.log(`CEO ${ceoId} updating order ${orderId}: ${JSON.stringify(updateData)}`);
+
+      // Validate CEO exists and has correct role
+      const ceo = await this.prisma.user.findUnique({
+        where: { id: ceoId },
+        select: { id: true, username: true, fullName: true, role: true }
+      });
+
+      if (!ceo) {
+        throw new BadRequestException(`CEO with ID ${ceoId} not found`);
+      }
+
+      if (ceo.role !== 'CEO') {
+        throw new BadRequestException(`Only CEOs can perform this action. Current role: ${ceo.role}`);
+      }
+
+      // Validate order exists
+      const existingOrder = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          OrderItem: {
+            include: {
+              product: {
+                select: { id: true, name: true, price: true }
+              }
+            }
+          },
+          user: {
+            select: { id: true, username: true, fullName: true }
+          }
+        }
+      });
+
+      if (!existingOrder) {
+        throw new BadRequestException(`Order with ID ${orderId} not found`);
+      }
+
+      // Validate payment amounts
+      if (updateData.paidAmount < 0) {
+        throw new BadRequestException('Paid amount cannot be negative');
+      }
+
+      if (updateData.balanceAmount < 0) {
+        throw new BadRequestException('Balance amount cannot be negative');
+      }
+
+      if (updateData.paymentAmount < 0) {
+        throw new BadRequestException('Payment amount cannot be negative');
+      }
+
+      // Validate that paidAmount + balanceAmount = totalAmount
+      const expectedTotal = updateData.paidAmount + updateData.balanceAmount;
+      if (Math.abs(expectedTotal - existingOrder.totalAmount) > 0.01) {
+        throw new BadRequestException(
+          `Payment amounts don't match order total. Expected: ${existingOrder.totalAmount}, Got: ${expectedTotal}`
+        );
+      }
+
+      // Update the order
+      const updatedOrder = await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentStatus: updateData.paymentStatus,
+          status: updateData.status,
+          paymentMethod: updateData.paymentMethod,
+          paidAmount: updateData.paidAmount,
+          // Note: balanceAmount is not in the schema, it's calculated
+          updatedAt: new Date()
+        },
+        include: {
+          OrderItem: {
+            include: {
+              product: {
+                select: { id: true, name: true, description: true, price: true }
+              }
+            }
+          },
+          user: {
+            select: { id: true, username: true, fullName: true, email: true }
+          }
+        }
+      });
+
+      // Create activity log for the update
+      await this.prisma.activityLog.create({
+        data: {
+          userId: ceoId,
+          action: 'CEO_UPDATE_ORDER',
+          details: `CEO ${ceo.fullName} updated order #${orderId}: ${updateData.notes || 'Payment status updated'}`,
+          timestamp: new Date()
+        }
+      });
+
+      this.logger.log(`Order ${orderId} successfully updated by CEO ${ceo.fullName}`);
+
+      return {
+        success: true,
+        message: `Order ${orderId} updated successfully by CEO`,
+        order: {
+          id: updatedOrder.id,
+          orderNumber: `ORD-${updatedOrder.id.slice(-8).toUpperCase()}`,
+          receiptId: updatedOrder.receiptId,
+          status: updatedOrder.status,
+          paymentStatus: updatedOrder.paymentStatus,
+          paymentMethod: updatedOrder.paymentMethod,
+          totalAmount: updatedOrder.totalAmount,
+          paidAmount: updatedOrder.paidAmount,
+          balanceAmount: updateData.balanceAmount, // From request since not stored
+          createdAt: updatedOrder.createdAt,
+          updatedAt: updatedOrder.updatedAt,
+          customer: {
+            id: updatedOrder.user?.id || updatedOrder.userId,
+            name: updatedOrder.customerName,
+            phone: updatedOrder.customerPhone,
+            email: updatedOrder.user?.email || null
+          },
+          items: updatedOrder.OrderItem.map((item: any) => ({
+            id: item.id,
+            quantity: item.quantity,
+            product: item.product
+          })),
+          updateInfo: {
+            updatedBy: ceo.fullName,
+            paymentAmount: updateData.paymentAmount,
+            paymentReference: updateData.paymentReference,
+            notes: updateData.notes || null,
+            updatedAt: updatedOrder.updatedAt
+          }
+        }
+      };
+
+    } catch (error: any) {
+      this.logger.error(`Failed to update order ${orderId}: ${error.message}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to update order: ${error.message}`);
+    }
+  }
 }

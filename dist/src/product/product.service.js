@@ -1451,6 +1451,126 @@ let ProductService = ProductService_1 = class ProductService {
             throw new common_1.BadRequestException(`Failed to clear pending orders: ${error.message}`);
         }
     }
+    async ceoUpdateOrder(orderId, updateData, ceoId) {
+        var _a, _b;
+        try {
+            this.logger.log(`CEO ${ceoId} updating order ${orderId}: ${JSON.stringify(updateData)}`);
+            const ceo = await this.prisma.user.findUnique({
+                where: { id: ceoId },
+                select: { id: true, username: true, fullName: true, role: true }
+            });
+            if (!ceo) {
+                throw new common_1.BadRequestException(`CEO with ID ${ceoId} not found`);
+            }
+            if (ceo.role !== 'CEO') {
+                throw new common_1.BadRequestException(`Only CEOs can perform this action. Current role: ${ceo.role}`);
+            }
+            const existingOrder = await this.prisma.order.findUnique({
+                where: { id: orderId },
+                include: {
+                    OrderItem: {
+                        include: {
+                            product: {
+                                select: { id: true, name: true, price: true }
+                            }
+                        }
+                    },
+                    user: {
+                        select: { id: true, username: true, fullName: true }
+                    }
+                }
+            });
+            if (!existingOrder) {
+                throw new common_1.BadRequestException(`Order with ID ${orderId} not found`);
+            }
+            if (updateData.paidAmount < 0) {
+                throw new common_1.BadRequestException('Paid amount cannot be negative');
+            }
+            if (updateData.balanceAmount < 0) {
+                throw new common_1.BadRequestException('Balance amount cannot be negative');
+            }
+            if (updateData.paymentAmount < 0) {
+                throw new common_1.BadRequestException('Payment amount cannot be negative');
+            }
+            const expectedTotal = updateData.paidAmount + updateData.balanceAmount;
+            if (Math.abs(expectedTotal - existingOrder.totalAmount) > 0.01) {
+                throw new common_1.BadRequestException(`Payment amounts don't match order total. Expected: ${existingOrder.totalAmount}, Got: ${expectedTotal}`);
+            }
+            const updatedOrder = await this.prisma.order.update({
+                where: { id: orderId },
+                data: {
+                    paymentStatus: updateData.paymentStatus,
+                    status: updateData.status,
+                    paymentMethod: updateData.paymentMethod,
+                    paidAmount: updateData.paidAmount,
+                    updatedAt: new Date()
+                },
+                include: {
+                    OrderItem: {
+                        include: {
+                            product: {
+                                select: { id: true, name: true, description: true, price: true }
+                            }
+                        }
+                    },
+                    user: {
+                        select: { id: true, username: true, fullName: true, email: true }
+                    }
+                }
+            });
+            await this.prisma.activityLog.create({
+                data: {
+                    userId: ceoId,
+                    action: 'CEO_UPDATE_ORDER',
+                    details: `CEO ${ceo.fullName} updated order #${orderId}: ${updateData.notes || 'Payment status updated'}`,
+                    timestamp: new Date()
+                }
+            });
+            this.logger.log(`Order ${orderId} successfully updated by CEO ${ceo.fullName}`);
+            return {
+                success: true,
+                message: `Order ${orderId} updated successfully by CEO`,
+                order: {
+                    id: updatedOrder.id,
+                    orderNumber: `ORD-${updatedOrder.id.slice(-8).toUpperCase()}`,
+                    receiptId: updatedOrder.receiptId,
+                    status: updatedOrder.status,
+                    paymentStatus: updatedOrder.paymentStatus,
+                    paymentMethod: updatedOrder.paymentMethod,
+                    totalAmount: updatedOrder.totalAmount,
+                    paidAmount: updatedOrder.paidAmount,
+                    balanceAmount: updateData.balanceAmount,
+                    createdAt: updatedOrder.createdAt,
+                    updatedAt: updatedOrder.updatedAt,
+                    customer: {
+                        id: ((_a = updatedOrder.user) === null || _a === void 0 ? void 0 : _a.id) || updatedOrder.userId,
+                        name: updatedOrder.customerName,
+                        phone: updatedOrder.customerPhone,
+                        email: ((_b = updatedOrder.user) === null || _b === void 0 ? void 0 : _b.email) || null
+                    },
+                    items: updatedOrder.OrderItem.map((item) => ({
+                        id: item.id,
+                        quantity: item.quantity,
+                        product: item.product
+                    })),
+                    updateInfo: {
+                        updatedBy: ceo.fullName,
+                        paymentAmount: updateData.paymentAmount,
+                        paymentReference: updateData.paymentReference,
+                        notes: updateData.notes || null,
+                        updatedAt: updatedOrder.updatedAt
+                    }
+                }
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to update order ${orderId}: ${error.message}`);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to update order: ${error.message}`);
+        }
+    }
 };
 exports.ProductService = ProductService;
 exports.ProductService = ProductService = ProductService_1 = __decorate([

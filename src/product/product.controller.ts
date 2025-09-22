@@ -5,6 +5,7 @@ import { Roles } from '../auth/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateCustomerOrderDto } from './dto/customer-order.dto';
+import { CeoOrderUpdateDto } from './dto/ceo-order-update.dto';
 import {Express} from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -187,5 +188,16 @@ export class ProductController {
   @Post('clear-pending-orders')
   async clearPendingOrders() {
     return this.productService.clearPendingOrders();
+  }
+
+  @Patch('order/:orderId/ceo-update')
+  @Roles('CEO')
+  async ceoUpdateOrder(
+    @Param('orderId') orderId: string,
+    @Body() updateData: CeoOrderUpdateDto,
+    @Request() req: any
+  ) {
+    const ceoId = req.user?.userId || req.user?.id || req.user;
+    return this.productService.ceoUpdateOrder(orderId, updateData, ceoId);
   }
 }

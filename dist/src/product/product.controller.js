@@ -21,6 +21,7 @@ const roles_decorator_1 = require("../auth/roles.decorator");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const customer_order_dto_1 = require("./dto/customer-order.dto");
+const ceo_order_update_dto_1 = require("./dto/ceo-order-update.dto");
 let ProductController = ProductController_1 = class ProductController {
     constructor(productService) {
         this.productService = productService;
@@ -125,6 +126,11 @@ let ProductController = ProductController_1 = class ProductController {
     }
     async clearPendingOrders() {
         return this.productService.clearPendingOrders();
+    }
+    async ceoUpdateOrder(orderId, updateData, req) {
+        var _a, _b;
+        const ceoId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
+        return this.productService.ceoUpdateOrder(orderId, updateData, ceoId);
     }
 };
 exports.ProductController = ProductController;
@@ -250,6 +256,16 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "clearPendingOrders", null);
+__decorate([
+    (0, common_1.Patch)('order/:orderId/ceo-update'),
+    (0, roles_decorator_1.Roles)('CEO'),
+    __param(0, (0, common_1.Param)('orderId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, ceo_order_update_dto_1.CeoOrderUpdateDto, Object]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "ceoUpdateOrder", null);
 exports.ProductController = ProductController = ProductController_1 = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('products'),

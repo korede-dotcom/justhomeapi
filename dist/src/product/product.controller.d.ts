@@ -1,5 +1,6 @@
 import { ProductService } from './product.service';
 import { CreateCustomerOrderDto } from './dto/customer-order.dto';
+import { CeoOrderUpdateDto } from './dto/ceo-order-update.dto';
 export declare class ProductController {
     private readonly productService;
     private readonly logger;
@@ -322,5 +323,40 @@ export declare class ProductController {
             createdAt: Date;
             itemCount: number;
         }[];
+    }>;
+    ceoUpdateOrder(orderId: string, updateData: CeoOrderUpdateDto, req: any): Promise<{
+        success: boolean;
+        message: string;
+        order: {
+            id: string;
+            orderNumber: string;
+            receiptId: string;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            paymentMethod: import(".prisma/client").$Enums.PaymentMethod | null;
+            totalAmount: number;
+            paidAmount: number;
+            balanceAmount: any;
+            createdAt: Date;
+            updatedAt: Date;
+            customer: {
+                id: string | null;
+                name: string;
+                phone: string | null;
+                email: string | null;
+            };
+            items: {
+                id: any;
+                quantity: any;
+                product: any;
+            }[];
+            updateInfo: {
+                updatedBy: string;
+                paymentAmount: any;
+                paymentReference: any;
+                notes: any;
+                updatedAt: Date;
+            };
+        };
     }>;
 }
