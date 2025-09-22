@@ -309,4 +309,101 @@ export declare class ProductService {
             category: string | null;
         };
     }>;
+    getAvailableProducts(query?: {
+        page?: number;
+        size?: number;
+        search?: string;
+        category?: string;
+        minPrice?: number;
+        maxPrice?: number;
+    }): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            size: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrevious: boolean;
+        };
+        summary: {
+            totalAvailableProducts: number;
+            productsOnPage: number;
+            totalStock: number;
+            priceRange: {
+                min: number;
+                max: number;
+            };
+            shopFilter: {
+                enabled: boolean;
+                shopId: string;
+                note: string;
+            } | {
+                enabled: boolean;
+                note: string;
+                shopId?: undefined;
+            };
+        };
+        filters: {
+            search: string | null;
+            category: string | null;
+            minPrice: number | null;
+            maxPrice: number | null;
+            defaultShop: string | null;
+        };
+    }>;
+    createCustomerOrder(orderData: any): Promise<{
+        success: boolean;
+        message: string;
+        order: {
+            id: string;
+            orderNumber: string;
+            receiptId: string;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            totalAmount: number;
+            deliveryAddress: any;
+            customerNotes: any;
+            createdAt: Date;
+            estimatedDelivery: Date;
+            customer: {
+                id: string;
+                name: string;
+                phone: string | null;
+                email: string;
+            };
+            items: {
+                id: any;
+                quantity: any;
+                unitPrice: any;
+                totalPrice: any;
+                product: any;
+            }[];
+            summary: {
+                totalItems: number;
+                totalQuantity: any;
+                totalAmount: number;
+            };
+        };
+    }>;
+    clearPendingOrders(): Promise<{
+        success: boolean;
+        message: string;
+        deletedCount: number;
+        deletedOrders: never[];
+        deletedOrderItems?: undefined;
+    } | {
+        success: boolean;
+        message: string;
+        deletedCount: number;
+        deletedOrderItems: number;
+        deletedOrders: {
+            id: string;
+            customerName: string;
+            customerPhone: string | null;
+            totalAmount: number;
+            createdAt: Date;
+            itemCount: number;
+        }[];
+    }>;
 }

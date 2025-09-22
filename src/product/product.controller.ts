@@ -4,6 +4,7 @@ import { ProductService } from './product.service';
 import { Roles } from '../auth/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { CreateCustomerOrderDto } from './dto/customer-order.dto';
 import {Express} from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -150,5 +151,41 @@ export class ProductController {
     const userId = req.user?.userId || req.user?.id || req.user;
     this.logger.log(`XLSX upload initiated by user: ${userId}`);
     return this.productService.uploadAndReadXlsx(file, userId);
+  }
+
+  @Get('available')
+  async getAvailableProducts(
+    @Query('page') page?: string,
+    @Query('size') size?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string
+  ) {
+    const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+    const parsedSize = Math.min(100, Math.max(1, parseInt(size || '20', 10) || 20));
+    const parsedMinPrice = minPrice ? parseFloat(minPrice) : undefined;
+    const parsedMaxPrice = maxPrice ? parseFloat(maxPrice) : undefined;
+
+    return this.productService.getAvailableProducts({
+      page: parsedPage,
+      size: parsedSize,
+      search: search?.trim(),
+      category: category?.trim(),
+      minPrice: parsedMinPrice,
+      maxPrice: parsedMaxPrice
+    });
+  }
+
+  @Post('order')
+  async createOrder(
+    @Body() orderData: CreateCustomerOrderDto
+  ) {
+    return this.productService.createCustomerOrder(orderData);
+  }
+
+  @Post('clear-pending-orders')
+  async clearPendingOrders() {
+    return this.productService.clearPendingOrders();
   }
 }

@@ -20,6 +20,7 @@ const product_service_1 = require("./product.service");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
+const customer_order_dto_1 = require("./dto/customer-order.dto");
 let ProductController = ProductController_1 = class ProductController {
     constructor(productService) {
         this.productService = productService;
@@ -104,6 +105,26 @@ let ProductController = ProductController_1 = class ProductController {
         const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || req.user;
         this.logger.log(`XLSX upload initiated by user: ${userId}`);
         return this.productService.uploadAndReadXlsx(file, userId);
+    }
+    async getAvailableProducts(page, size, search, category, minPrice, maxPrice) {
+        const parsedPage = Math.max(1, parseInt(page || '1', 10) || 1);
+        const parsedSize = Math.min(100, Math.max(1, parseInt(size || '20', 10) || 20));
+        const parsedMinPrice = minPrice ? parseFloat(minPrice) : undefined;
+        const parsedMaxPrice = maxPrice ? parseFloat(maxPrice) : undefined;
+        return this.productService.getAvailableProducts({
+            page: parsedPage,
+            size: parsedSize,
+            search: search === null || search === void 0 ? void 0 : search.trim(),
+            category: category === null || category === void 0 ? void 0 : category.trim(),
+            minPrice: parsedMinPrice,
+            maxPrice: parsedMaxPrice
+        });
+    }
+    async createOrder(orderData) {
+        return this.productService.createCustomerOrder(orderData);
+    }
+    async clearPendingOrders() {
+        return this.productService.clearPendingOrders();
     }
 };
 exports.ProductController = ProductController;
@@ -204,6 +225,31 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ProductController.prototype, "uploadXlsx", null);
+__decorate([
+    (0, common_1.Get)('available'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('size')),
+    __param(2, (0, common_1.Query)('search')),
+    __param(3, (0, common_1.Query)('category')),
+    __param(4, (0, common_1.Query)('minPrice')),
+    __param(5, (0, common_1.Query)('maxPrice')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "getAvailableProducts", null);
+__decorate([
+    (0, common_1.Post)('order'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [customer_order_dto_1.CreateCustomerOrderDto]),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "createOrder", null);
+__decorate([
+    (0, common_1.Post)('clear-pending-orders'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], ProductController.prototype, "clearPendingOrders", null);
 exports.ProductController = ProductController = ProductController_1 = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('products'),

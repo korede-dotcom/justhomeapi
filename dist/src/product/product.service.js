@@ -1102,6 +1102,355 @@ let ProductService = ProductService_1 = class ProductService {
             throw new common_1.BadRequestException(`Failed to fetch warehouse products: ${error.message}`);
         }
     }
+    async getAvailableProducts(query) {
+        try {
+            this.logger.debug('Fetching available products for customers');
+            const page = (query === null || query === void 0 ? void 0 : query.page) || 1;
+            const size = Math.min((query === null || query === void 0 ? void 0 : query.size) || 20, 100);
+            const search = query === null || query === void 0 ? void 0 : query.search;
+            const category = query === null || query === void 0 ? void 0 : query.category;
+            const minPrice = query === null || query === void 0 ? void 0 : query.minPrice;
+            const maxPrice = query === null || query === void 0 ? void 0 : query.maxPrice;
+            const defaultShopId = process.env.DEFAULT_SHOP_ID;
+            const whereClause = {
+                availableStock: { gt: 0 }
+            };
+            if (defaultShopId && defaultShopId.trim()) {
+                this.logger.log(`Filtering products for default shop: ${defaultShopId}`);
+                whereClause.assignments = {
+                    some: {
+                        shopId: defaultShopId.trim(),
+                        availableQuantity: { gt: 0 }
+                    }
+                };
+            }
+            else {
+                this.logger.log('No default shop configured, showing all available products');
+            }
+            if (search) {
+                whereClause.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } }
+                ];
+            }
+            if (category) {
+                whereClause.category = {
+                    name: { contains: category, mode: 'insensitive' }
+                };
+            }
+            if (minPrice !== undefined || maxPrice !== undefined) {
+                whereClause.price = {};
+                if (minPrice !== undefined)
+                    whereClause.price.gte = minPrice;
+                if (maxPrice !== undefined)
+                    whereClause.price.lte = maxPrice;
+            }
+            const includeClause = {
+                category: {
+                    select: { id: true, name: true, description: true }
+                },
+                warehouse: {
+                    select: { id: true, name: true, location: true }
+                }
+            };
+            if (defaultShopId && defaultShopId.trim()) {
+                includeClause.assignments = {
+                    where: { shopId: defaultShopId.trim() },
+                    include: {
+                        shop: {
+                            select: { id: true, name: true, location: true }
+                        }
+                    }
+                };
+            }
+            const [products, total] = await Promise.all([
+                this.prisma.product.findMany({
+                    where: whereClause,
+                    include: includeClause,
+                    orderBy: [
+                        { availableStock: 'desc' },
+                        { name: 'asc' }
+                    ],
+                    skip: (page - 1) * size,
+                    take: size
+                }),
+                this.prisma.product.count({
+                    where: whereClause
+                })
+            ]);
+            const totalPages = Math.ceil(total / size);
+            const processedProducts = products.map((product) => {
+                var _a;
+                const productData = Object.assign({}, product);
+                if (defaultShopId && defaultShopId.trim() && ((_a = product.assignments) === null || _a === void 0 ? void 0 : _a.length) > 0) {
+                    const shopAssignment = product.assignments[0];
+                    productData.shopStock = {
+                        availableQuantity: shopAssignment.availableQuantity,
+                        soldQuantity: shopAssignment.soldQuantity,
+                        shop: shopAssignment.shop
+                    };
+                    delete productData.assignments;
+                }
+                return productData;
+            });
+            const summary = {
+                totalAvailableProducts: total,
+                productsOnPage: products.length,
+                totalStock: products.reduce((sum, p) => sum + p.availableStock, 0),
+                priceRange: {
+                    min: products.length > 0 ? Math.min(...products.map(p => p.price)) : 0,
+                    max: products.length > 0 ? Math.max(...products.map(p => p.price)) : 0
+                },
+                shopFilter: defaultShopId ? {
+                    enabled: true,
+                    shopId: defaultShopId,
+                    note: 'Products filtered by default shop assignment'
+                } : {
+                    enabled: false,
+                    note: 'Showing all available products from all warehouses'
+                }
+            };
+            this.logger.log(`Retrieved ${products.length} available products for customers${defaultShopId ? ` (filtered by shop: ${defaultShopId})` : ''}`);
+            return {
+                data: processedProducts,
+                pagination: {
+                    page,
+                    size,
+                    total,
+                    totalPages,
+                    hasNext: page < totalPages,
+                    hasPrevious: page > 1
+                },
+                summary,
+                filters: {
+                    search: search || null,
+                    category: category || null,
+                    minPrice: minPrice || null,
+                    maxPrice: maxPrice || null,
+                    defaultShop: defaultShopId || null
+                }
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to fetch available products: ${error.message}`);
+            throw new common_1.BadRequestException(`Failed to fetch available products: ${error.message}`);
+        }
+    }
+    async createCustomerOrder(orderData) {
+        try {
+            this.logger.debug(`Creating customer order: ${JSON.stringify(orderData)}`);
+            if (!orderData.customerName || !orderData.customerName.trim()) {
+                throw new common_1.BadRequestException('Customer name is required');
+            }
+            if (!orderData.customerPhone || !orderData.customerPhone.trim()) {
+                throw new common_1.BadRequestException('Customer phone is required');
+            }
+            let customer = await this.prisma.user.findUnique({
+                where: { username: orderData.customerPhone.trim() },
+                select: { id: true, username: true, fullName: true, email: true, role: true }
+            });
+            if (!customer) {
+                this.logger.log(`Creating new customer user for phone: ${orderData.customerPhone}`);
+                customer = await this.prisma.user.create({
+                    data: {
+                        username: orderData.customerPhone.trim(),
+                        email: `customer_${orderData.customerPhone.trim()}@temp.com`,
+                        password: 'temp_password',
+                        fullName: orderData.customerName.trim(),
+                        role: 'Customer',
+                        createdBy: 'system',
+                        isActive: true
+                    },
+                    select: { id: true, username: true, fullName: true, email: true, role: true }
+                });
+                this.logger.log(`Created new customer user: ${customer.id} for ${orderData.customerName}`);
+            }
+            else {
+                this.logger.log(`Using existing customer user: ${customer.id} for ${orderData.customerName}`);
+            }
+            if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
+                throw new common_1.BadRequestException('Order must contain at least one item');
+            }
+            if (!orderData.deliveryAddress || !orderData.deliveryAddress.trim()) {
+                throw new common_1.BadRequestException('Delivery address is required');
+            }
+            let totalAmount = 0;
+            const orderItems = [];
+            for (const item of orderData.items) {
+                if (!item.productId || !item.quantity || item.quantity <= 0) {
+                    throw new common_1.BadRequestException('Each item must have a valid productId and quantity > 0');
+                }
+                const product = await this.prisma.product.findUnique({
+                    where: { id: item.productId },
+                    select: {
+                        id: true,
+                        name: true,
+                        price: true,
+                        availableStock: true,
+                        warehouse: {
+                            select: { id: true, name: true, location: true }
+                        }
+                    }
+                });
+                if (!product) {
+                    throw new common_1.BadRequestException(`Product with ID ${item.productId} not found`);
+                }
+                if (product.availableStock < item.quantity) {
+                    throw new common_1.BadRequestException(`Insufficient stock for ${product.name}. Available: ${product.availableStock}, Requested: ${item.quantity}`);
+                }
+                const itemTotal = product.price * item.quantity;
+                totalAmount += itemTotal;
+                orderItems.push({
+                    productId: product.id,
+                    productName: product.name,
+                    quantity: item.quantity,
+                    unitPrice: product.price,
+                    totalPrice: itemTotal,
+                    warehouseId: product.warehouse.id,
+                    warehouseName: product.warehouse.name
+                });
+            }
+            const receiptId = `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+            const order = await this.prisma.order.create({
+                data: {
+                    userId: customer.id,
+                    customerName: orderData.customerName.trim(),
+                    customerPhone: orderData.customerPhone.trim(),
+                    totalAmount: totalAmount,
+                    status: 'pending_payment',
+                    paymentStatus: 'pending',
+                    receiptId: receiptId,
+                    OrderItem: {
+                        create: orderItems.map(item => ({
+                            productId: item.productId,
+                            quantity: item.quantity
+                        }))
+                    }
+                },
+                include: {
+                    OrderItem: {
+                        include: {
+                            product: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    description: true,
+                                    image: true,
+                                    warehouse: {
+                                        select: { id: true, name: true, location: true }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    user: {
+                        select: { id: true, username: true, fullName: true, email: true }
+                    }
+                }
+            });
+            this.logger.log(`Order created successfully: ${order.id} for customer ${orderData.customerName}`);
+            return {
+                success: true,
+                message: `Order placed successfully! Order ID: ${order.id}`,
+                order: {
+                    id: order.id,
+                    orderNumber: `ORD-${order.id.slice(-8).toUpperCase()}`,
+                    receiptId: order.receiptId,
+                    status: order.status,
+                    paymentStatus: order.paymentStatus,
+                    totalAmount: order.totalAmount,
+                    deliveryAddress: orderData.deliveryAddress,
+                    customerNotes: orderData.customerNotes || null,
+                    createdAt: order.createdAt,
+                    estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                    customer: {
+                        id: customer.id,
+                        name: order.customerName,
+                        phone: order.customerPhone,
+                        email: customer.email
+                    },
+                    items: order.OrderItem.map((item) => {
+                        const orderItemData = orderItems.find(oi => oi.productId === item.productId);
+                        return {
+                            id: item.id,
+                            quantity: item.quantity,
+                            unitPrice: (orderItemData === null || orderItemData === void 0 ? void 0 : orderItemData.unitPrice) || 0,
+                            totalPrice: (orderItemData === null || orderItemData === void 0 ? void 0 : orderItemData.totalPrice) || 0,
+                            product: item.product
+                        };
+                    }),
+                    summary: {
+                        totalItems: orderItems.length,
+                        totalQuantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+                        totalAmount: totalAmount
+                    }
+                }
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to create customer order: ${error.message}`);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to create order: ${error.message}`);
+        }
+    }
+    async clearPendingOrders() {
+        try {
+            this.logger.log('Starting to clear pending orders with null shop and attendee');
+            const ordersToDelete = await this.prisma.order.findMany({
+                where: {
+                    AND: [
+                        { shopId: null },
+                        { attendeeId: null }
+                    ]
+                },
+                include: {
+                    OrderItem: true
+                }
+            });
+            if (ordersToDelete.length === 0) {
+                this.logger.log('No pending orders found to clear');
+                return {
+                    success: true,
+                    message: 'No pending orders found to clear',
+                    deletedCount: 0,
+                    deletedOrders: []
+                };
+            }
+            this.logger.log(`Found ${ordersToDelete.length} orders to delete`);
+            const orderIds = ordersToDelete.map(order => order.id);
+            const deletedOrderItems = await this.prisma.orderItem.deleteMany({
+                where: {
+                    orderId: { in: orderIds }
+                }
+            });
+            const deletedOrders = await this.prisma.order.deleteMany({
+                where: {
+                    id: { in: orderIds }
+                }
+            });
+            this.logger.log(`Successfully deleted ${deletedOrders.count} orders and ${deletedOrderItems.count} order items`);
+            return {
+                success: true,
+                message: `Successfully cleared ${deletedOrders.count} pending orders`,
+                deletedCount: deletedOrders.count,
+                deletedOrderItems: deletedOrderItems.count,
+                deletedOrders: ordersToDelete.map(order => ({
+                    id: order.id,
+                    customerName: order.customerName,
+                    customerPhone: order.customerPhone,
+                    totalAmount: order.totalAmount,
+                    createdAt: order.createdAt,
+                    itemCount: order.OrderItem.length
+                }))
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to clear pending orders: ${error.message}`);
+            throw new common_1.BadRequestException(`Failed to clear pending orders: ${error.message}`);
+        }
+    }
 };
 exports.ProductService = ProductService;
 exports.ProductService = ProductService = ProductService_1 = __decorate([

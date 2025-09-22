@@ -11,6 +11,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto) {
     const result = await this.auth.login(dto);
+   
     if (!result) throw new UnauthorizedException();
     return result;
   }

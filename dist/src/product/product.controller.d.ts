@@ -1,4 +1,5 @@
 import { ProductService } from './product.service';
+import { CreateCustomerOrderDto } from './dto/customer-order.dto';
 export declare class ProductController {
     private readonly productService;
     private readonly logger;
@@ -232,4 +233,94 @@ export declare class ProductController {
         warehousesProcessed: number;
     }>;
     uploadXlsx(file: Express.Multer.File, req: any): Promise<any>;
+    getAvailableProducts(page?: string, size?: string, search?: string, category?: string, minPrice?: string, maxPrice?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            size: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrevious: boolean;
+        };
+        summary: {
+            totalAvailableProducts: number;
+            productsOnPage: number;
+            totalStock: number;
+            priceRange: {
+                min: number;
+                max: number;
+            };
+            shopFilter: {
+                enabled: boolean;
+                shopId: string;
+                note: string;
+            } | {
+                enabled: boolean;
+                note: string;
+                shopId?: undefined;
+            };
+        };
+        filters: {
+            search: string | null;
+            category: string | null;
+            minPrice: number | null;
+            maxPrice: number | null;
+            defaultShop: string | null;
+        };
+    }>;
+    createOrder(orderData: CreateCustomerOrderDto): Promise<{
+        success: boolean;
+        message: string;
+        order: {
+            id: string;
+            orderNumber: string;
+            receiptId: string;
+            status: import(".prisma/client").$Enums.OrderStatus;
+            paymentStatus: import(".prisma/client").$Enums.PaymentStatus;
+            totalAmount: number;
+            deliveryAddress: any;
+            customerNotes: any;
+            createdAt: Date;
+            estimatedDelivery: Date;
+            customer: {
+                id: string;
+                name: string;
+                phone: string | null;
+                email: string;
+            };
+            items: {
+                id: any;
+                quantity: any;
+                unitPrice: any;
+                totalPrice: any;
+                product: any;
+            }[];
+            summary: {
+                totalItems: number;
+                totalQuantity: any;
+                totalAmount: number;
+            };
+        };
+    }>;
+    clearPendingOrders(): Promise<{
+        success: boolean;
+        message: string;
+        deletedCount: number;
+        deletedOrders: never[];
+        deletedOrderItems?: undefined;
+    } | {
+        success: boolean;
+        message: string;
+        deletedCount: number;
+        deletedOrderItems: number;
+        deletedOrders: {
+            id: string;
+            customerName: string;
+            customerPhone: string | null;
+            totalAmount: number;
+            createdAt: Date;
+            itemCount: number;
+        }[];
+    }>;
 }
