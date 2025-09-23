@@ -8,13 +8,13 @@ import { CreateCustomerOrderDto } from './dto/customer-order.dto';
 import { CeoOrderUpdateDto } from './dto/ceo-order-update.dto';
 import {Express} from 'express';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('products')
 export class ProductController {
     private readonly logger = new Logger(ProductController.name);
   constructor(private readonly productService: ProductService) {}
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
   async findAll(@Request() req: any, @Query('page') page?: string, @Query('size') size?: string, @Query('search') search?: string, @Query('warehouseId') warehouseId?: string) {
     this.logger.debug(`Controller received user data: ${JSON.stringify(req.user)}`);
@@ -52,6 +52,7 @@ export class ProductController {
 
 
   @Post('/category')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin')
   async createCategory(@Body() data: any) {
     try {
@@ -64,12 +65,14 @@ export class ProductController {
   }
 
   @Get('/category')
-  @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+  // @Roles('CEO', 'Admin', 'WarehouseKeeper', 'Storekeeper', 'Attendee', 'Receptionist', 'Packager')
+
   async getCategories() {
     return this.productService.findAllCategories();
   }
 
   @Get('warehouse/:warehouseId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   async getWarehouseProducts(
     @Param('warehouseId') warehouseId: string,
@@ -99,6 +102,7 @@ export class ProductController {
   }
 
   @Post('upload')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   @UseInterceptors(FileInterceptor('file'))
   async uploadImage(
@@ -109,18 +113,21 @@ export class ProductController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   create( @Body() data: any) {
     return this.productService.create(data);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   update(@Param('id') id: string, @Body() data: any) {
     return this.productService.update(id, data);
   }
 
   @Post('upload-csv')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(FileInterceptor('file'))
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   async uploadCSV(
@@ -131,6 +138,7 @@ export class ProductController {
   }
 
   @Post('bulk-upload')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(FileInterceptor('file'))
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   async bulkUpload(
@@ -143,6 +151,7 @@ export class ProductController {
   }
 
   @Post('upload-xlsx')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @UseInterceptors(FileInterceptor('file'))
   @Roles('CEO', 'Admin', 'WarehouseKeeper')
   async uploadXlsx(
@@ -191,6 +200,7 @@ export class ProductController {
   }
 
   @Patch('order/:orderId/ceo-update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CEO')
   async ceoUpdateOrder(
     @Param('orderId') orderId: string,
